@@ -18,6 +18,8 @@
    <img src="https://img.shields.io/badge/Contributors-4-blueviolet" />
 </div>
 
+<br>
+
 ---
 
 ## 🧑‍🍳 What is LuTuon API?
@@ -50,11 +52,13 @@ Built with **Express.js** and **PostgreSQL (via Drizzle ORM)**, it serves recipe
 ```
 lutuon-backend/
 ├─ src/
+│  ├─ config/       # Server configs
 │  ├─ routes/       # Express route handlers
 │  ├─ controllers/  # Business logic
-│  ├─ models/       # Drizzle ORM schemas
+│  ├─ services/     # Service modules
+│  ├─ schema/       # Drizzle ORM schemas
 │  ├─ middleware/   # Auth & validation
-│  └─ index.ts      # Entry point
+│  └─ server.ts      # Entry point
 ├─ package.json
 ├─ tsconfig.json
 └─ .env
@@ -117,3 +121,4 @@ Open an [issue](https://github.com/Beirun/lutuon-backend/issues) or fork the pro
 ---
 
 > "LuTuon Backend — Serving culture and cuisine, one API at a time."
+
