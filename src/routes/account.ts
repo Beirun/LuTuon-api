@@ -1,0 +1,19 @@
+import { Router } from "express";
+import { AccountController } from "../controllers/accountController";
+import { authenticateToken } from "../middlewares/auth";
+
+const router = Router();
+
+router.post("/register", AccountController.register);
+router.post("/login", AccountController.login);
+router.post("/refresh", AccountController.refresh);
+router.post("/logout", AccountController.logout);
+
+router.get("/token/verify", authenticateToken, async (req, res) => res.sendStatus(200));
+router.get("/me", authenticateToken, AccountController.getMe);
+router.get("/users", authenticateToken, AccountController.getAllUsers);
+router.get("/users/:userId", authenticateToken, AccountController.getUserById);
+
+router.put("/:userId", authenticateToken, AccountController.update);
+
+export default router;
