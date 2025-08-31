@@ -20,6 +20,13 @@ export async function sendEmail(to: string, subject: string, html: string) {
       to,
       subject,
       html,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: "./src/assets/logo.png", 
+          cid: "logo" 
+        }
+      ],
     });
   } catch (e) {
     throw new Error("Failed to send email: " + (e as Error).message);
