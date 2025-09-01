@@ -2,6 +2,7 @@
 import { db } from "../config/db"
 import { user } from "../schema/user"
 import { refreshToken } from "../schema/refreshToken"
+import { role } from "../schema/role"
 import { eq, sql } from "drizzle-orm"
 import bcryptjs from "bcryptjs"
 import jwt from "jsonwebtoken"
@@ -130,12 +131,11 @@ export class AccountService {
   async logout(req: any, res: Response) {
     const token = req.cookies.refreshToken
     if (token) {
-      await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token))
+      const user = await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token)).returning()
+      await this.addLog(user[0].userId, "User logged out")
     }
 
     res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" })
-
-    if (req.user?.userId) await this.addLog(req.user.userId, "User logged out")
     return { message: "Logged out successfully" }
   }
 
@@ -145,8 +145,18 @@ export class AccountService {
   }
 
   async getAllUsers() {
-    return await db.select().from(user)
-  }
+return await db
+    .select({
+      userId: user.userId,
+      userName: user.userName,
+      userEmail: user.userEmail,
+      userDob: user.userDob,
+      roleName: role.roleName,
+      dateCreated: user.dateCreated,
+
+    })
+    .from(user)
+    .leftJoin(role, eq(user.roleId, role.roleId))  }
 
   async getUserById(id: string) {
     const result = await db.select().from(user).where(eq(user.userId, id)).limit(1)
