@@ -1,3 +1,4 @@
+//controllers/accountController.ts
 import { Request, Response } from "express";
 import { AccountService } from "../services/accountService";
 import { AuthRequest } from "../middlewares/auth";
@@ -30,7 +31,7 @@ export class AccountController {
       );
       res.json({ message: "Login Successfully", token, user });
     } catch (err: any) {
-      res.status(401).json({ message: err.message });
+      res.status(400).json({ message: err.message });
     }
   }
 
@@ -86,6 +87,7 @@ export class AccountController {
   static async getAllUsers(_req: AuthRequest, res: Response) {
     try {
       const users = await accountService.getAllUsers();
+      console.log("users",users)
       res.json(users);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
