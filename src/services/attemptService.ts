@@ -16,7 +16,7 @@ export class AttemptService {
           attemptDate: attempt.attemptDate,
           attemptDuration: attempt.attemptDuration,
           attemptType: attempt.attemptType,
-          username: user.userName,
+          userName: user.userName,
           userEmail: user.userEmail,
           foodName: food.foodName,
         })
