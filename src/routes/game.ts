@@ -6,6 +6,7 @@ const router = Router();
 
 // Attempts
 router.get("/attempts", AttemptController.getAttempts);
+router.get("/attempts/:userId", AttemptController.getAttemptByUserId);
 router.post("/attempts", AttemptController.postAttempt);
 
 // Achievements
