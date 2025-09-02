@@ -4,7 +4,7 @@ import { feedback } from "../schema/feedback"
 import { log } from "../schema/log"
 import { eq } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
-
+import { user } from "../schema/user"
 export class FeedbackService {
   private async addLog(userId: string, description: string) {
     await db.insert(log).values({
@@ -27,8 +27,17 @@ export class FeedbackService {
   }
 
   async getAllFeedback() {
-    return await db.select().from(feedback)
-  }
+  return await db
+    .select({
+      feedbackId: feedback.feedbackId,
+      feedbackMessage: feedback.feedbackMessage,
+      feedbackDate: feedback.feedbackDate,
+      userName: user.userName,
+      userEmail: user.userEmail,
+    })
+    .from(feedback)
+    .leftJoin(user, eq(feedback.userId, user.userId))
+}
 
   async deleteFeedback(feedbackId: string) {
     const fb = await db.select().from(feedback).where(eq(feedback.feedbackId, feedbackId))
