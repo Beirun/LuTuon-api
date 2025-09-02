@@ -13,6 +13,15 @@ export class AttemptController {
       res.status(500).json({ error: (e as Error).message });
     }
   }
+  static async getAttemptByUserId(req: Request, res: Response) {
+    const {userId} = req.params;
+    try {
+      const data = await attemptService.getAllAttemptByUserId(userId);
+      res.status(200).json(data);
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  }
 
   static async postAttempt(req: Request, res: Response) {
     try {
