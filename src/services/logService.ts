@@ -11,7 +11,6 @@ export class LogService {
         logId: log.logId,
         logDescription: log.logDescription,
         logDate: log.logDate,
-        userId: log.userId,
         userName: user.userName,
         userEmail: user.userEmail,
       })
