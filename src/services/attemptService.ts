@@ -29,6 +29,29 @@ export class AttemptService {
       throw new Error("Failed to fetch attempts: " + (e as Error).message);
     }
   }
+  async getAllAttemptByUserId(userId: string) {
+    try {
+      const rows = await db
+        .select({
+          attemptId: attempt.attemptId,
+          attemptPoint: attempt.attemptPoint,
+          attemptDate: attempt.attemptDate,
+          attemptDuration: attempt.attemptDuration,
+          attemptType: attempt.attemptType,
+          userName: user.userName,
+          userEmail: user.userEmail,
+          foodName: food.foodName,
+        })
+        .from(attempt)
+        .leftJoin(user, eq(attempt.userId, user.userId))
+        .leftJoin(food, eq(attempt.foodId, food.foodId))
+        .where(eq(user.userId, userId));
+
+      return rows;
+    } catch (e) {
+      throw new Error("Failed to fetch attempts: " + (e as Error).message);
+    }
+  }
 
   async createAttempt(data: {
     userId: string;
