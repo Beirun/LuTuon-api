@@ -96,6 +96,68 @@ export class AccountService {
     }
   }
 
+  async google(email: string, username: string, ip: string, res: Response){
+    let found = await db.select().from(user).where(eq(user.userEmail, email)).limit(1)
+    let message = null;
+    if (found.length === 0){
+      const hashed = await bcryptjs.hash("", 10)
+      const randomAvatarId = await db.select().from(avatar).orderBy(sql`RANDOM()`).limit(1)
+
+      const newUser = {
+        userId: uuidv4(),
+        roleId: "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
+        userEmail: email,
+        userName: username,
+        passwordHash: hashed,
+        userDob: new Date('1/1/2000'),
+        dateCreated: new Date(),
+        dateUpdated: new Date(),
+        avatarId: randomAvatarId[0].avatarId,
+      }
+
+      found = await db.insert(user).values(newUser).returning()
+      await this.addLog(newUser.userId, "User registered")
+      message = "Registered successfully"
+    }
+
+
+    const payload = { userId: found[0].userId, roleId: found[0].roleId }
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
+
+    const refreshTokenValue = uuidv4()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS)
+
+    await db.insert(refreshToken).values({
+      userId: found[0].userId,
+      token: refreshTokenValue,
+      ipAddress: ip,
+      expiresAt,
+    })
+
+    res.cookie("refreshToken", refreshTokenValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      expires: expiresAt,
+    })
+
+    await this.addLog(found[0].userId, "User logged in")
+    message = message ?? "Logged in successfully";
+    return {
+      message,
+      token,
+      user: {
+        userId: found[0].userId,
+        userEmail: found[0].userEmail,
+        userName: found[0].userName,
+        userDob: found[0].userDob,
+        avatarId: found[0].avatarId,
+        isAdmin: found[0].roleId !== "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
+      },
+    }
+  }
+
   async refresh(ip: string, req: any, res: Response) {
     const oldToken = req.cookies.refreshToken
     if (!oldToken) throw new Error("No refresh token provided")
