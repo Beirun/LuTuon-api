@@ -35,6 +35,21 @@ export class AccountController {
     }
   }
 
+  static async google(req : Request, res: Response){
+    try {
+      const ip = req.ip || "unknown";
+      const { token, user, message } = await accountService.google(
+        req.body.email,
+        req.body.username,
+        ip,
+        res
+      );
+      res.json({ message, token, user });
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }      
+  }
+
   static async refresh(req: Request, res: Response) {
     try {
       const ip = req.ip || "unknown";
