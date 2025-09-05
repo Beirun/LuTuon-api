@@ -9,6 +9,8 @@ router.post("/register", AccountController.register);
 router.post("/login", AccountController.login);
 router.post("/refresh", AccountController.refresh);
 router.post("/logout", AccountController.logout);
+router.post("/google", AccountController.google);
+
 
 router.get("/token/verify", authenticateToken, async (req, res) => res.sendStatus(200));
 router.get("/me", authenticateToken, AccountController.getMe);
