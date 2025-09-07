@@ -13,6 +13,7 @@ export class AccountController {
         username: generateUsername(),
         password: req.body.password,
         dob: new Date("1/1/2000"),
+        confirmPassword: req.body.confirmPassword,
       });
       res.status(201).json(result);
     } catch (err: any) {
@@ -79,12 +80,12 @@ export class AccountController {
       const updates = req.body;
 
       const updatedUser = await accountService.update(userId, updates);
-
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
+      if(updatedUser.status === 200) return res.status(200).json({message: updatedUser.message, user: updatedUser.user, updated: false})
 
-      res.json(updatedUser);
+      res.status(201).json({message: updatedUser.message, user: updatedUser.user, updated: true})
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
