@@ -35,9 +35,9 @@ export class ResetPasswordController {
 
   static async resetPassword(req: Request, res: Response) {
     try {
-      const { email, code, newPassword } = req.body;
+      const { email, code, newPassword, confirmPassword } = req.body;
 
-      const result = await resetService.resetPassword(email, code, newPassword);
+      const result = await resetService.resetPassword(email, code, newPassword, confirmPassword);
       res.status(200).json(result);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
