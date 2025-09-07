@@ -20,6 +20,10 @@ export class ResetPasswordService {
   }
 
   async requestReset(email: string, ipAddress: string) {
+    if (!email) throw new Error("Please enter an email")
+    const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    if(!validateEmail(email)) throw new Error("Enter a valid email")
+
     const code = Math.floor(100000 + Math.random() * 900000).toString()
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
     const u = await db.select().from(user).where(eq(user.userEmail, email))
@@ -34,6 +38,8 @@ export class ResetPasswordService {
   }
 
   async verifyCode(email: string, code: string) {
+    if (!code) throw new Error("Please enter the code")
+    if(code.length < 6) throw new Error("Please Enter a valid Code")
     const u = await db.select().from(user).where(eq(user.userEmail, email))
     if (u.length === 0) throw new Error("Email not found")
 
@@ -45,8 +51,13 @@ export class ResetPasswordService {
     return reset
   }
 
-  async resetPassword(email: string, code: string, newPassword: string) {
+  async resetPassword(email: string, code: string, newPassword: string, confirmPassword: string) {
     const reset = await this.verifyCode(email, code)
+    if (!newPassword) throw new Error("Please enter your new password")
+    if (!confirmPassword) throw new Error("Please enter a confirm password")
+    if (newPassword.length < 8) throw new Error("Password must be at least 8 characters long")
+    if (newPassword !== confirmPassword) throw new Error("Passwords do not match");
+
     const u = await db.select().from(user).where(eq(user.userEmail, email))
     if (u.length === 0) throw new Error("Email not found")
 
