@@ -29,7 +29,18 @@ export class AccountService {
     username: string
     password: string
     dob: Date
+    confirmPassword: string
   }) {
+    const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+    if (!data.email || !data.password || !data.confirmPassword) throw new Error("Input all fields")
+    
+    if (!validateEmail(data.email)) throw new Error("Enter a valid email")
+    
+    if (data.password !== data.confirmPassword) throw new Error("Passwords do not match")
+    
+    if (data.password.length < 8) throw new Error("Password must be at least 8 characters long")
+    
     const hashed = await bcryptjs.hash(data.password, 10)
     const randomAvatarId = await db.select().from(avatar).orderBy(sql`RANDOM()`).limit(1)
 
@@ -54,6 +65,8 @@ export class AccountService {
   }
 
   async login(email: string, password: string, ip: string, res: Response) {
+    if (!email || !password) throw new Error("Input all fields")
+
     const found = await db.select().from(user).where(eq(user.userEmail, email)).limit(1)
     if (found.length === 0) throw new Error("Email not found")
 
@@ -91,7 +104,7 @@ export class AccountService {
         userName: found[0].userName,
         userDob: found[0].userDob,
         avatarId: found[0].avatarId,
-        isAdmin: found[0].roleId !== "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
+        roleId: found[0].roleId,
       },
     }
   }
@@ -100,7 +113,6 @@ export class AccountService {
     let found = await db.select().from(user).where(eq(user.userEmail, email)).limit(1)
     let message = null;
     if (found.length === 0){
-      const hashed = await bcryptjs.hash("", 10)
       const randomAvatarId = await db.select().from(avatar).orderBy(sql`RANDOM()`).limit(1)
 
       const newUser = {
@@ -108,7 +120,7 @@ export class AccountService {
         roleId: "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
         userEmail: email,
         userName: username,
-        passwordHash: hashed,
+        passwordHash: '',
         userDob: new Date('1/1/2000'),
         dateCreated: new Date(),
         dateUpdated: new Date(),
@@ -153,7 +165,7 @@ export class AccountService {
         userName: found[0].userName,
         userDob: found[0].userDob,
         avatarId: found[0].avatarId,
-        isAdmin: found[0].roleId !== "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
+        roleId: found[0].roleId,
       },
     }
   }
@@ -177,17 +189,58 @@ export class AccountService {
     return { token }
   }
 
-  async update(userId: string, updates: { userName?: string; userEmail?: string; password?: string; userDob?: Date; avatarId?: string }) {
-    const dataToUpdate: any = { dateUpdated: new Date() }
-    if (updates.userName) dataToUpdate.userName = updates.userName
-    if (updates.userEmail) dataToUpdate.userEmail = updates.userEmail
-    if (updates.avatarId) dataToUpdate.avatarId = updates.avatarId
-    if (updates.userDob) dataToUpdate.userDob = updates.userDob
-    if (updates.password) dataToUpdate.passwordHash = await bcryptjs.hash(updates.password, 10)
-
+  async update(userId: string, updates: { userName?: string; userEmail?: string; oldPassword?: string; newPassword?: string; confirmPassword: string; userDob?: string; avatarId?: string }) {
+    const dataToUpdate: any = {}
+    const foundUser = await db.select().from(user).where(eq(user.userId,userId)).limit(1);
+    if (foundUser.length === 0) throw new Error("User not found");
+    if (updates.userName && updates.userName !== foundUser[0].userName) dataToUpdate.userName = updates.userName
+    if (updates.userEmail && updates.userEmail !== foundUser[0].userEmail) 
+    if (updates.avatarId && updates.avatarId !== foundUser[0].avatarId) dataToUpdate.avatarId = updates.avatarId
+    if (updates.userDob && updates.userDob !== foundUser[0].userDob.toISOString()) dataToUpdate.userDob = new Date(updates.userDob)
+    if (updates.newPassword) {
+      if(updates.newPassword.length < 8) throw new Error("New Password must be atleast 8 characters long");
+      if(updates.newPassword !== updates.confirmPassword) throw new Error("New password and confirm password do not match");
+      if(foundUser[0].passwordHash && !updates.oldPassword) throw new Error("Please enter your old password");
+      if(updates.oldPassword && !foundUser[0].passwordHash){
+        const valid = await bcryptjs.hash(updates.oldPassword, foundUser[0].passwordHash);
+        if(!valid) throw new Error("Incorrect Old Password");
+      }
+      dataToUpdate.passwordHash = await bcryptjs.hash(updates.newPassword, 10);
+    }
+    if(JSON.stringify(dataToUpdate) === '{}'){
+      return {
+        status: 200,
+        message: "No changes have been made",
+        user: {
+          userId: foundUser[0].userId,
+          userEmail: foundUser[0].userEmail,
+          userName: foundUser[0].userName,
+          userDob: foundUser[0].userDob,
+          avatarId: foundUser[0].avatarId,
+          roleId: foundUser[0].roleId,
+        },
+      }
+    }
+    
+    dataToUpdate.dateUpdated = new Date() 
+    if(dataToUpdate.userEmail){
+      const found = await db.select().from(user).where(eq(user.userEmail, dataToUpdate.email)).limit(1)
+      if(found.length === 0) throw new Error("Email already taken")
+      }
     const updatedUser = await db.update(user).set(dataToUpdate).where(eq(user.userId, userId)).returning()
     await this.addLog(userId, "User profile updated")
-    return updatedUser[0]
+    return {
+      status: 201,
+      message: "Profile updated successfully",
+        user: {
+          userId: updatedUser[0].userId,
+          userEmail: updatedUser[0].userEmail,
+          userName: updatedUser[0].userName,
+          userDob: updatedUser[0].userDob,
+          avatarId: updatedUser[0].avatarId,
+          roleId: updatedUser[0].roleId,
+        },
+    }
   }
 
   async logout(req: any, res: Response) {
