@@ -19,7 +19,7 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 // allow cors requests from any origin and with credentials
-app.use(cors({ origin: (origin, callback) => callback(null, true), credentials: true }));
+app.use(cors({ origin: [process.env.FRONTEND_URL as string, "http://localhost:5173"], credentials: true }));
 
 app.use("/accounts",account);
 app.use("/feedbacks",feedback);
@@ -28,7 +28,7 @@ app.use("/reset",reset);
 app.use("/logs", log);
 app.use("/game",game);
 
-const port = process.env.NODE_ENV === 'development' ? (process.env.PORT || 80) : 3000;
+const port = process.env.NODE_ENV !== 'production' ? (process.env.PORT || 80) : 3000;
 app.listen(port as number, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${port}`);
 });
