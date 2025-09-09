@@ -8,8 +8,11 @@ import bcryptjs from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { v4 as uuidv4 } from "uuid"
 import { avatar } from "../schema/avatar"
-import { Response } from "express"
+import { Response, Request } from "express"
 import { log } from "../schema/log"
+import dotEnv from 'dotenv';
+
+dotEnv.config();
 
 const ACCESS_TOKEN_EXPIRY = "1h"
 const REFRESH_TOKEN_EXPIRY_DAYS = 7
@@ -87,12 +90,25 @@ export class AccountService {
       expiresAt,
     })
 
-    res.cookie("refreshToken", refreshTokenValue, {
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
       expires: expiresAt,
-    })
+      // Fix the logic based on environment
+      ...(process.env.NODE_ENV === "production" 
+        ? { 
+            secure: true, 
+            sameSite: "none" as const,
+            // Optional: set domain for production
+            // domain: ".yourdomain.com" 
+          }
+        : { 
+            secure: false, 
+            sameSite: "lax" as const 
+          }
+      )
+    }
+
+    res.cookie("refreshToken", refreshTokenValue, cookieOptions)
 
     await this.addLog(found[0].userId, "User logged in")
 
@@ -147,12 +163,27 @@ export class AccountService {
       expiresAt,
     })
 
-    res.cookie("refreshToken", refreshTokenValue, {
+    const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
       expires: expiresAt,
-    })
+      // Fix the logic based on environment
+      ...(process.env.NODE_ENV === "production" 
+        ? { 
+            secure: true, 
+            sameSite: "none" as const,
+            // Optional: set domain for production
+            // domain: ".yourdomain.com" 
+          }
+        : { 
+            secure: false, 
+            sameSite: "lax" as const 
+          }
+      )
+    }
+
+    res.cookie("refreshToken", refreshTokenValue, cookieOptions)
+
+    console.log(refreshTokenValue)
 
     await this.addLog(found[0].userId, "User logged in")
     message = message ?? "Logged in successfully";
@@ -170,8 +201,9 @@ export class AccountService {
     }
   }
 
-  async refresh(ip: string, req: any, res: Response) {
+  async refresh(ip: string, req: Request, res: Response) {
     const oldToken = req.cookies.refreshToken
+    console.log("old token", oldToken)
     if (!oldToken) throw new Error("No refresh token provided")
 
     const found = await db.select().from(refreshToken).where(eq(refreshToken.token, oldToken)).limit(1)
@@ -202,7 +234,7 @@ export class AccountService {
       if(updates.newPassword !== updates.confirmPassword) throw new Error("New password and confirm password do not match");
       if(foundUser[0].passwordHash && !updates.oldPassword) throw new Error("Please enter your old password");
       if(updates.oldPassword && !foundUser[0].passwordHash){
-        const valid = await bcryptjs.hash(updates.oldPassword, foundUser[0].passwordHash);
+        const valid = await bcryptjs.compare(updates.oldPassword, foundUser[0].passwordHash);
         if(!valid) throw new Error("Incorrect Old Password");
       }
       dataToUpdate.passwordHash = await bcryptjs.hash(updates.newPassword, 10);
@@ -224,7 +256,7 @@ export class AccountService {
     
     dataToUpdate.dateUpdated = new Date() 
     if(dataToUpdate.userEmail){
-      const found = await db.select().from(user).where(eq(user.userEmail, dataToUpdate.email)).limit(1)
+      const found = await db.select().from(user).where(eq(user.userEmail, dataToUpdate.userEmail)).limit(1)
       if(found.length === 0) throw new Error("Email already taken")
       }
     const updatedUser = await db.update(user).set(dataToUpdate).where(eq(user.userId, userId)).returning()
@@ -243,14 +275,17 @@ export class AccountService {
     }
   }
 
-  async logout(req: any, res: Response) {
+  async logout(req: Request, res: Response) {
     const token = req.cookies.refreshToken
+    console.log("token",req.cookies.refreshToken)
     if (token) {
+      console.log('12')
       const user = await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token)).returning()
       await this.addLog(user[0].userId, "User logged out")
     }
+    console.log("123")
 
-    res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" })
+    res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "none" })
     return { message: "Logged out successfully" }
   }
 
