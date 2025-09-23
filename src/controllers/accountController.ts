@@ -74,12 +74,11 @@ export class AccountController {
     }
   }
 
-  static async update(req: Request, res: Response) {
+  static async update(req: AuthRequest, res: Response) {
     try {
-      const { userId } = req.params;
       const updates = req.body;
 
-      const updatedUser = await accountService.update(userId, updates);
+      const updatedUser = await accountService.update(req.user.userId, updates);
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -109,9 +108,10 @@ export class AccountController {
     }
   }
 
-  static async getUserById(req: AuthRequest, res: Response) {
+  static async getUserById(req: Request, res: Response) {
     try {
-      const user = await accountService.getUserById(req.params.userId);
+      const {userId} = req.params;
+      const user = await accountService.getUserById(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json(user);
     } catch (err: any) {
