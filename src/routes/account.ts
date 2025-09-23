@@ -17,6 +17,6 @@ router.get("/me", authenticateToken, AccountController.getMe);
 router.get("/users", authenticateToken, AccountController.getAllUsers);
 router.get("/users/:userId", authenticateToken, AccountController.getUserById);
 
-router.put("/:userId", authenticateToken, AccountController.update);
+router.put("/", authenticateToken, AccountController.update);
 
 export default router;
