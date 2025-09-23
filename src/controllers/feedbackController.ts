@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { FeedbackService } from "../services/feedbackService";
+import { AuthRequest } from "middlewares/auth";
 
 const feedbackService = new FeedbackService();
 
@@ -9,7 +10,7 @@ export class FeedbackController {
     try {
       const { userId, feedbackMessage } = req.body;
       if (!userId || !feedbackMessage) {
-        return res.status(400).json({ message: "userId and feedbackMessage are required" });
+        return res.status(400).json({ message: "userId and feedback Message are required" });
       }
 
       const newFeedback = await feedbackService.createFeedback(userId, feedbackMessage);
@@ -20,10 +21,9 @@ export class FeedbackController {
   }
 
   // Get feedback by user
-  static async getFeedbackByUser(req: Request, res: Response) {
+  static async getFeedbackByUser(req: AuthRequest, res: Response) {
     try {
-      const { userId } = req.params;
-      const feedbacks = await feedbackService.getFeedbackByUser(userId);
+      const feedbacks = await feedbackService.getFeedbackByUser(req.user.userId);
       res.json(feedbacks);
     } catch (error: any) {
       res.status(500).json({ message: "Error fetching feedback"});
