@@ -1,6 +1,7 @@
 // controllers/achievementController.ts
 import { Request, Response } from "express";
 import { achievementService } from "../services/achievementService";
+import { AuthRequest } from "middlewares/auth";
 
 export class AchievementController {
   static async getAll(req: Request, res: Response) {
@@ -12,12 +13,10 @@ export class AchievementController {
     }
   }
 
-  static async getByUser(req: Request, res: Response) {
+  static async getByUser(req: AuthRequest, res: Response) {
     try {
-      const { userId } = req.params;
-      if (!userId) return res.status(400).json({ error: "Missing userId" });
 
-      const data = await achievementService.getAchievementsByUser(userId);
+      const data = await achievementService.getAchievementsByUser(req.user.userId);
       res.status(200).json(data);
     } catch (e) {
       res.status(500).json({ error: (e as Error).message });
