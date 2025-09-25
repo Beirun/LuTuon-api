@@ -9,7 +9,8 @@ export const user = pgTable('user', {
   userName: text('user_name').unique().notNull(),
   passwordHash: text('password_hash').notNull(),
   userDob: timestamp('user_dob', { withTimezone: true }).notNull(),
+  avatarId: uuid('avatar_id').references(() => avatar.avatarId).notNull(),
   dateCreated: timestamp('date_created', { withTimezone: true }).notNull(),
-  dateUpdated: timestamp('date_updated', { withTimezone: true }).notNull(),
-  avatarId: uuid('avatar_id').references(() => avatar.avatarId).notNull()
+  dateUpdated: timestamp('date_updated', { withTimezone: true }),
+  dateDeleted: timestamp('date_deleted', { withTimezone: true }),
 });
