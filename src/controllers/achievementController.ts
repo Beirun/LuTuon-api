@@ -23,16 +23,16 @@ export class AchievementController {
     }
   }
 
-  static async add(req: Request, res: Response) {
+  static async add(req: AuthRequest, res: Response) {
     try {
-      const { userId, achievementId, progress, dateCompleted } = req.body;
+      const { achievementId, progress, dateCompleted } = req.body;
 
-      if (!userId || !achievementId || progress === undefined || !dateCompleted) {
+      if (!achievementId || progress === undefined || !dateCompleted) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
       const data = await achievementService.addAchievement({
-        userId,
+        userId: req.user.userId,
         achievementId,
         progress: Number(progress),
         dateCompleted: new Date(dateCompleted),
@@ -44,16 +44,16 @@ export class AchievementController {
     }
   }
 
-  static async update(req: Request, res: Response) {
+  static async update(req: AuthRequest, res: Response) {
     try {
-      const { userId, achievementId, progress, dateCompleted } = req.body;
+      const { achievementId, progress, dateCompleted } = req.body;
 
-      if (!userId || !achievementId || progress === undefined || !dateCompleted) {
+      if (!achievementId || progress === undefined || !dateCompleted) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
       const data = await achievementService.updateAchievement({
-        userId,
+        userId: req.user.userId,
         achievementId,
         progress: Number(progress),
         dateCompleted: new Date(dateCompleted),
