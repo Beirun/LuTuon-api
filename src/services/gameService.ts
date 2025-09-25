@@ -1,10 +1,8 @@
 // services/gameService.ts
 import { db } from "../config/db"
 import { user } from "../schema/user"
-import { attempt } from "../schema/attempt"
 import { refreshToken } from "../schema/refreshToken"
 import { log } from "../schema/log"
-import { food } from "../schema/food"       // <-- make sure this schema exists
 import { eq, sql, isNull, and } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import bcrypt from "bcryptjs"
@@ -47,7 +45,7 @@ export class GameService {
 
     // Return stats as [{ foodId, foodName, highestPoint, tutorialUnlock }]
     // Updated to include dateDeleted filter in the SQL query
-    const stats = await db.execute(sql`
+    const attempts = await db.execute(sql`
       SELECT
         a.food_id   AS "foodId",
         f.food_name AS "foodName",
@@ -70,7 +68,7 @@ export class GameService {
         userDob: u[0].userDob,
         avatarId: u[0].avatarId,
       },
-      attempts: stats.rows as {
+      attempts: attempts.rows as {
         foodId: string
         foodName: string
         highestPoint: number

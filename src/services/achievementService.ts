@@ -4,7 +4,6 @@ import { achievement } from "../schema/achievement";
 import { userAchievement } from "../schema/userAchievement";
 import { user } from "../schema/user";
 import { eq, and } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
 
 export class AchievementService {
   async getAllAchievements() {

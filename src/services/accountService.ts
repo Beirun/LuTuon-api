@@ -3,7 +3,7 @@ import { db } from "../config/db"
 import { user } from "../schema/user"
 import { refreshToken } from "../schema/refreshToken"
 import { role } from "../schema/role"
-import { eq, sql, isNull, and } from "drizzle-orm"
+import { eq, sql, isNull, and, desc } from "drizzle-orm"
 import bcryptjs from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { v4 as uuidv4 } from "uuid"
@@ -197,12 +197,23 @@ export class AccountService {
     }
   }
 
-  async refresh(ip: string, req: Request, res: Response) {
+  async refresh(ip: string, req: Request, _res: Response) {
     const oldToken = req.cookies.refreshToken
     console.log("old token", oldToken)
     if (!oldToken) throw new Error("No refresh token provided")
 
-    const found = await db.select().from(refreshToken).where(eq(refreshToken.token, oldToken)).limit(1)
+    const found = await db.select(
+      {
+        revokedAt: refreshToken.revokedAt, 
+        expiresAt: refreshToken.expiresAt, 
+        userId: user.userId, 
+        roleId: user.roleId}
+      )
+      .from(refreshToken)
+      .where(eq(refreshToken.token, oldToken))
+      .leftJoin(user, eq(user.userId,refreshToken.userId))
+      .orderBy(desc(refreshToken.expiresAt))
+      .limit(1)
     if (found.length === 0) throw new Error("Invalid refresh token")
 
     const tokenRow = found[0]
@@ -210,10 +221,10 @@ export class AccountService {
       throw new Error("Refresh token expired or revoked")
     }
 
-    const payload = { userId: tokenRow.userId }
+    const payload = { userId: tokenRow.userId, roleId: tokenRow.roleId }
     const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
 
-    await this.addLog(tokenRow.userId, "Access token refreshed")
+    await this.addLog(tokenRow.userId!, "Access token refreshed")
     return { token }
   }
 
