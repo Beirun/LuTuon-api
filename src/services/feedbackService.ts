@@ -18,7 +18,7 @@ export class FeedbackService {
   async createFeedback(userId: string, feedbackMessage: string) {
     const newFeedback = { feedbackId: uuidv4(), userId, feedbackMessage, feedbackDate: new Date() }
     await db.insert(feedback).values(newFeedback)
-    await this.addLog(userId, "Feedback created")
+    await this.addLog(userId, "Submitted a feedback")
     return newFeedback
   }
 
@@ -41,7 +41,7 @@ export class FeedbackService {
 
   async deleteFeedback(feedbackId: string) {
     const fb = await db.select().from(feedback).where(eq(feedback.feedbackId, feedbackId))
-    if (fb.length > 0) await this.addLog(fb[0].userId, "Feedback deleted")
+    if (fb.length > 0) await this.addLog(fb[0].userId, "Deleted a feedback")
     await db.delete(feedback).where(eq(feedback.feedbackId, feedbackId))
     return { message: "Feedback deleted successfully" }
   }
