@@ -8,8 +8,8 @@ const router = Router();
 router.post("/register", AccountController.register);
 router.post("/login", AccountController.login);
 router.post("/refresh", AccountController.refresh);
-router.post("/logout", AccountController.logout);
 router.post("/google", AccountController.google);
+router.post("/logout", authenticateToken, AccountController.logout);
 
 
 router.get("/token/verify", authenticateToken, async (req, res) => res.json());
