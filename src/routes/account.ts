@@ -19,4 +19,5 @@ router.get("/users/:userId", authenticateToken, AccountController.getUserById);
 
 router.put("/", authenticateToken, AccountController.update);
 
+router.delete("/", authenticateToken, AccountController.delete);
 export default router;

@@ -90,6 +90,15 @@ export class AccountController {
     }
   }
 
+  static async delete(req: AuthRequest, res: Response){
+    try {
+      const result = await accountService.delete(req.user.userId,req, res);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  }
+
   static async getMe(req: AuthRequest, res: Response) {
     try {
       const me = await accountService.getMe(req.user.userId);

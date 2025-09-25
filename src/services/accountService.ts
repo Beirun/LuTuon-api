@@ -280,6 +280,24 @@ export class AccountService {
     }
   }
 
+  async delete(userId: string, req: Request, res: Response) {
+  const foundUser = await db.select().from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
+  if (foundUser.length === 0) throw new Error("User not found or already deleted")
+
+  await db.update(user).set({ dateDeleted: new Date() }).where(eq(user.userId, userId))
+  
+  const token = req.cookies.refreshToken
+  
+  if (token) await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token))
+
+  res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "none" })
+  await this.addLog(userId, "User deleted their account")
+  return {
+    message: "Account deleted successfully"
+  }
+}
+
+
   async logout(req: Request, res: Response) {
     const token = req.cookies.refreshToken
     console.log("token",req.cookies.refreshToken)

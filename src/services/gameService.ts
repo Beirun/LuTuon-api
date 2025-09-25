@@ -22,7 +22,8 @@ export class GameService {
   }
 
   async login(email: string, password: string, ip: string) {
-    const u = await db.select().from(user).where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
+    const u = await db.select().from(user)
+      .where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
     if (u.length === 0) throw new Error("User not found")
 
     const valid = await bcrypt.compare(password, u[0].passwordHash)
@@ -43,8 +44,7 @@ export class GameService {
 
     await this.addLog(u[0].userId, "Logged In To Game")
 
-    // Return stats as [{ foodId, foodName, highestPoint, tutorialUnlock }]
-    // Updated to include dateDeleted filter in the SQL query
+    // Per-food stats
     const attempts = await db.execute(sql`
       SELECT
         a.food_id   AS "foodId",
@@ -57,6 +57,38 @@ export class GameService {
       WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
       GROUP BY a.food_id, f.food_name
     `)
+
+    // Overall stats
+    const statsRes = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints"
+      FROM attempt a
+      JOIN "user" u ON u.user_id = a.user_id
+      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
+    `)
+    const stats = statsRes.rows.length ? statsRes.rows[0] as {
+      totalAttempts: number
+      totalPoints: number
+    } : { totalAttempts: 0, totalPoints: 0 }
+
+    // Achievements
+    const achievementsRes = await db.execute(sql`
+      SELECT
+        ua.achievement_id AS "achievementId",
+        ac.achievement_name AS "achievementName",
+        ua.progress,
+        ua.date_completed AS "dateCompleted"
+      FROM user_achievement ua
+      JOIN achievement ac ON ac.achievement_id = ua.achievement_id
+      WHERE ua.user_id = ${u[0].userId}
+    `)
+    const achievements = achievementsRes.rows as {
+      achievementId: string
+      achievementName: string
+      progress: number
+      dateCompleted: Date
+    }[]
 
     return {
       accessToken,
@@ -73,7 +105,9 @@ export class GameService {
         foodName: string
         highestPoint: number
         tutorialUnlock: boolean
-      }[]
+      }[],
+      stats,
+      achievements
     }
   }
 
@@ -84,10 +118,8 @@ export class GameService {
     if (tokenRow.revokedAt || new Date(tokenRow.expiresAt) < new Date()) {
       throw new Error("Refresh token expired or revoked")
     }
-
     const payload = { userId: tokenRow.userId }
     const newAccessToken = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
-
     await this.addLog(tokenRow.userId, "Access token refreshed")
     return { accessToken: newAccessToken }
   }
@@ -104,11 +136,12 @@ export class GameService {
   }
 
   async updateUsername(userId: string, newUsername: string) {
-    const taken = await db.select().from(user).where(and(eq(user.userName, newUsername), isNull(user.dateDeleted))).limit(1)
+    const taken = await db.select().from(user)
+      .where(and(eq(user.userName, newUsername), isNull(user.dateDeleted))).limit(1)
     if (taken.length > 0) throw new Error("Username already taken")
 
     const old = await db.select({ userName: user.userName })
-                        .from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
+      .from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
     const oldName = old.length ? old[0].userName : ""
 
     await db.update(user)
