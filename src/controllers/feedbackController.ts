@@ -6,14 +6,14 @@ const feedbackService = new FeedbackService();
 
 export class FeedbackController {
   // Create feedback
-  static async createFeedback(req: Request, res: Response) {
+  static async createFeedback(req: AuthRequest, res: Response) {
     try {
-      const { userId, feedbackMessage } = req.body;
-      if (!userId || !feedbackMessage) {
+      const { feedbackMessage } = req.body;
+      if (!feedbackMessage) {
         return res.status(400).json({ message: "userId and feedback Message are required" });
       }
 
-      const newFeedback = await feedbackService.createFeedback(userId, feedbackMessage);
+      const newFeedback = await feedbackService.createFeedback(req.user.userId, feedbackMessage);
       res.status(201).json(newFeedback);
     } catch (error: any) {
       res.status(500).json({ message: "Error creating feedback" });
