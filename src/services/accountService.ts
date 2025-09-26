@@ -325,11 +325,12 @@ return await db
       userDob: user.userDob,
       roleName: role.roleName,
       dateCreated: user.dateCreated,
-
+      dateDeleted: user.dateDeleted
     })
     .from(user)
     .leftJoin(role, eq(user.roleId, role.roleId))
-    .where(isNull(user.dateDeleted))  }
+    .orderBy(desc(user.dateCreated))
+    }
 
   async getUserById(id: string) {
     const result = await db.select().from(user).where(and(eq(user.userId, id), isNull(user.dateDeleted))).limit(1)
