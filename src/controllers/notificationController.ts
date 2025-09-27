@@ -5,15 +5,7 @@ import { AuthRequest } from "middlewares/auth";
 const notificationService = new NotificationService();
 
 export class NotificationController {
-  // Create
-  static async createNotification(req: AuthRequest, res: Response) {
-    try {
-      const newNotification = await notificationService.createNotification(req.user.userId,req.body);
-      res.status(201).json(newNotification);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  }
+
 
   // Get all by user
   static async getNotificationsByUser(req: AuthRequest, res: Response) {

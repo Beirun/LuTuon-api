@@ -1,25 +1,8 @@
 import { db } from "../config/db";
 import { notification } from "../schema/notification";
 import { eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
 
 export class NotificationService {
-  // Create a new notification
-  async createNotification(userId : string, data: {
-    notificationId: string;
-    notificationTitle: string;
-    notificationMessage: string;
-    notificationStatus: string;
-    notificationDate: Date;
-  }) {
-    data.notificationId = uuidv4();
-    const [newNotification] = await db
-      .insert(notification)
-      .values({...data, userId})
-      .returning();
-
-    return newNotification;
-  }
 
   // Get all notifications for a specific user
   async getNotificationsByUser(userId: string) {
