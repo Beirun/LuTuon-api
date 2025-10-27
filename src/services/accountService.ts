@@ -164,6 +164,8 @@ export class AccountService {
         dateCreated: new Date(),
         avatarId: randomAvatarId[0].avatarId,
       }
+      found = await db.insert(user).values(newUser).returning()
+      await this.addLog(newUser.userId, "User registered")
 
       // Notify all admins
       const admins = await db.select().from(user).where(eq(user.roleId, process.env.ADMIN_ROLE as string))
@@ -186,8 +188,6 @@ export class AccountService {
         notificationStatus: "unread",
         notificationDate: new Date(),
       })
-      found = await db.insert(user).values(newUser).returning()
-      await this.addLog(newUser.userId, "User registered")
       message = "Registered successfully"
     }
 
