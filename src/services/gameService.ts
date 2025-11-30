@@ -7,7 +7,7 @@ import { eq, sql, isNull, and } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
-import { avatar } from "schema/avatar"
+import { avatar } from "../schema/avatar"
 
 const ACCESS_TOKEN_EXPIRY = "1h"
 const REFRESH_TOKEN_EXPIRY_DAYS = 14
