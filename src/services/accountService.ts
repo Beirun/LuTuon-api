@@ -279,10 +279,19 @@ export class AccountService {
     const dataToUpdate: any = {}
     const foundUser = await db.select().from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1);
     if (foundUser.length === 0) throw new Error("User not found");
+
     if (updates.userName && updates.userName !== foundUser[0].userName) dataToUpdate.userName = updates.userName
-    if (updates.userEmail && updates.userEmail !== foundUser[0].userEmail)
-      if (updates.avatarId && updates.avatarId !== foundUser[0].avatarId) dataToUpdate.avatarId = updates.avatarId
+
+    if (updates.userEmail && updates.userEmail !== foundUser[0].userEmail){
+      const found = await db.select().from(user).where(and(eq(user.userEmail, updates.userEmail), isNull(user.dateDeleted))).limit(1)
+      if (found.length !== 0) throw new Error("Email is already taken")
+      dataToUpdate.userEmail = updates.userEmail
+    }
+
+    if (updates.avatarId && updates.avatarId !== foundUser[0].avatarId) dataToUpdate.avatarId = updates.avatarId
+
     if (updates.userDob && updates.userDob !== foundUser[0].userDob.toISOString()) dataToUpdate.userDob = new Date(updates.userDob)
+
     if (updates.newPassword) {
       if (updates.newPassword.length < 8) throw new Error("New Password must be atleast 8 characters long");
       if (updates.newPassword !== updates.confirmPassword) throw new Error("New password and confirm password do not match");

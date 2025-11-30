@@ -7,6 +7,7 @@ import { eq, sql, isNull, and } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
+import { avatar } from "schema/avatar"
 
 const ACCESS_TOKEN_EXPIRY = "1h"
 const REFRESH_TOKEN_EXPIRY_DAYS = 14
@@ -150,5 +151,19 @@ export class GameService {
 
     await this.addLog(userId, `Username changed from ${oldName} to ${newUsername}`)
     return { message: "Username updated successfully", userName: newUsername }
+  }
+
+  async updateAvatar(userId: string, avatarId: string) {
+    const avtr = await db.select().from(avatar)
+      .where(and(eq(user.avatarId, avatarId), isNull(user.dateDeleted))).limit(1)
+    if (avtr.length > 0) throw new Error("Avatar does not exists")
+
+
+    await db.update(user)
+      .set({ avatarId: avatarId })
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+
+    await this.addLog(userId, `Avatar changed to ${avtr[0].avatarName}`)
+    return { message: "Avatar updated successfully" }
   }
 }

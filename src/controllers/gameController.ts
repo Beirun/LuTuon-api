@@ -50,4 +50,15 @@ export class GameController {
       res.status(400).json({ error: e.message })
     }
   }
+
+  static async updateAvatar(req: AuthRequest, res: Response) {
+    try {
+      const { avatarId } = req.body
+      if (!avatarId) throw new Error("avatarId is required")
+      const result = await gameService.updateAvatar(req.user.userId, avatarId)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
 }
