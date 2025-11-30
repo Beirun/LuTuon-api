@@ -22,5 +22,6 @@ router.post("/login", GameController.login)
 router.post("/refresh", GameController.refresh)
 router.post("/logout", GameController.logout)
 router.put("/username", authenticateToken, GameController.updateUsername)
+router.put("/avatar", authenticateToken, GameController.updateAvatar)
 
 export default router
