@@ -155,8 +155,8 @@ export class GameService {
 
   async updateAvatar(userId: string, avatarId: string) {
     const avtr = await db.select().from(avatar)
-      .where(eq(avatar.avatarId, avatarId)).limit(1)
-    if (avtr.length > 0) throw new Error("Avatar does not exists")
+    .where(eq(avatar.avatarId, avatarId)).limit(1)
+    if (avtr.length < 1) throw new Error("Avatar does not exists")
 
 
     await db.update(user)
