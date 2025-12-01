@@ -3,7 +3,7 @@ import { db } from "../config/db";
 import { attempt } from "../schema/attempt";
 import { user } from "../schema/user";
 import { food } from "../schema/food";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 export class AttemptService {
@@ -22,7 +22,8 @@ export class AttemptService {
         })
         .from(attempt)
         .leftJoin(user, eq(attempt.userId, user.userId))
-        .leftJoin(food, eq(attempt.foodId, food.foodId));
+        .leftJoin(food, eq(attempt.foodId, food.foodId))
+        .orderBy(desc(attempt.attemptDate));
 
       return rows;
     } catch (e) {

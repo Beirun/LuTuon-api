@@ -2,7 +2,7 @@
 import { db } from "../config/db"
 import { feedback } from "../schema/feedback"
 import { log } from "../schema/log"
-import { eq } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 import { v4 as uuidv4 } from "uuid"
 import { user } from "../schema/user"
 export class FeedbackService {
@@ -37,6 +37,8 @@ export class FeedbackService {
     })
     .from(feedback)
     .leftJoin(user, eq(feedback.userId, user.userId))
+    .orderBy(desc(feedback.feedbackDate));
+    
 }
 
   async deleteFeedback(feedbackId: string) {
