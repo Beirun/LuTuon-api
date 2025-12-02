@@ -17,6 +17,17 @@ export class GameController {
     }
   }
 
+  static async google(req: Request, res: Response) {
+    const ip = req.ip || "unknown"
+    try {
+      const { email } = req.body
+      const result = await gameService.login(email, "", ip, true)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
+
   static async refresh(req: Request, res: Response) {
     try {
       const { refreshToken } = req.body

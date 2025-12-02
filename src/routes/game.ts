@@ -19,6 +19,7 @@ router.put("/achievements", authenticateToken, AchievementController.update)
 
 // Game
 router.post("/login", GameController.login)
+router.post("/google", GameController.google)
 router.post("/refresh", GameController.refresh)
 router.post("/logout", GameController.logout)
 router.put("/username", authenticateToken, GameController.updateUsername)

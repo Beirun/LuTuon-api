@@ -22,13 +22,15 @@ export class GameService {
     })
   }
 
-  async login(email: string, password: string, ip: string) {
+  async login(email: string, password: string, ip: string, isGoogle: boolean = false) {
     const u = await db.select().from(user)
       .where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
     if (u.length === 0) throw new Error("User not found")
 
-    const valid = await bcrypt.compare(password, u[0].passwordHash)
-    if (!valid) throw new Error("Incorrect password")
+    if(!isGoogle){
+      const valid = await bcrypt.compare(password, u[0].passwordHash)
+      if (!valid) throw new Error("Incorrect password")
+    }
 
     const payload = { userId: u[0].userId, roleId: u[0].roleId }
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
