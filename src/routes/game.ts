@@ -22,6 +22,7 @@ router.post("/login", GameController.login)
 router.post("/google", GameController.google)
 router.post("/refresh", GameController.refresh)
 router.post("/logout", GameController.logout)
+router.put("/profile", authenticateToken, GameController.profile)
 router.put("/username", authenticateToken, GameController.updateUsername)
 router.put("/avatar", authenticateToken, GameController.updateAvatar)
 

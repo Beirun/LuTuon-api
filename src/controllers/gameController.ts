@@ -28,6 +28,7 @@ export class GameController {
     }
   }
 
+
   static async refresh(req: Request, res: Response) {
     try {
       const { refreshToken } = req.body
@@ -62,6 +63,15 @@ export class GameController {
     }
   }
 
+  static async profile(req: AuthRequest, res: Response) {
+    try {
+      const ip = req.ip || "unknown"
+      const result = await gameService.profile(req.user.userId, ip)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
   static async updateAvatar(req: AuthRequest, res: Response) {
     try {
       const { avatarId } = req.body

@@ -114,6 +114,96 @@ export class GameService {
     }
   }
 
+  async profile(userId: string, ip: string) {
+    const u = await db.select().from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
+    if (u.length === 0) throw new Error("User not found")
+
+
+    const payload = { userId: u[0].userId, roleId: u[0].roleId }
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
+    const refreshTokenValue = uuidv4()
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS)
+
+    await db.insert(refreshToken).values({
+      userId: u[0].userId,
+      token: refreshTokenValue,
+      ipAddress: ip,
+      expiresAt,
+    })
+
+    await this.addLog(u[0].userId, "Logged In To Game")
+
+    // Per-food stats
+    const attempts = await db.execute(sql`
+      SELECT
+        a.food_id   AS "foodId",
+        f.food_name AS "foodName",
+        MAX(a.attempt_point) AS "highestPoint",
+        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point=100) AS "tutorialUnlock"
+      FROM attempt a
+      JOIN food f ON f.food_id = a.food_id
+      JOIN "user" u ON u.user_id = a.user_id
+      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
+      GROUP BY a.food_id, f.food_name
+    `)
+
+    // Overall stats
+    const statsRes = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints"
+      FROM attempt a
+      JOIN "user" u ON u.user_id = a.user_id
+      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
+    `)
+    const stats = statsRes.rows.length ? statsRes.rows[0] as {
+      totalAttempts: number
+      totalPoints: number
+    } : { totalAttempts: 0, totalPoints: 0 }
+
+    // Achievements
+    const achievementsRes = await db.execute(sql`
+      SELECT
+        ua.achievement_id AS "achievementId",
+        ac.achievement_name AS "achievementName",
+        ua.progress,
+        ua.date_completed AS "dateCompleted"
+      FROM user_achievement ua
+      JOIN achievement ac ON ac.achievement_id = ua.achievement_id
+      WHERE ua.user_id = ${u[0].userId}
+    `)
+    const achievements = achievementsRes.rows as {
+      achievementId: string
+      achievementName: string
+      progress: number
+      dateCompleted: Date
+    }[]
+
+    return {
+      accessToken,
+      refreshToken: refreshTokenValue,
+      user: {
+        userId: u[0].userId,
+        userEmail: u[0].userEmail,
+        userName: u[0].userName,
+        userDob: u[0].userDob,
+        avatarId: u[0].avatarId,
+      },
+      attempts: attempts.rows as {
+        foodId: string
+        foodName: string
+        highestPoint: number
+        tutorialUnlock: boolean
+      }[],
+      stats,
+      achievements
+    }
+  }
+
+
+
   async refresh(token: string) {
     const row = await db.select().from(refreshToken).where(eq(refreshToken.token, token)).limit(1)
     if (row.length === 0) throw new Error("Invalid refresh token")
