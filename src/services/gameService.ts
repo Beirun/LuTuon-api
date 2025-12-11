@@ -50,30 +50,54 @@ export class GameService {
     // Per-food stats
     const attempts = await db.execute(sql`
       SELECT
-        a.food_id   AS "foodId",
+        f.food_id AS "foodId",
         f.food_name AS "foodName",
-        MAX(a.attempt_point) AS "highestPoint",
-        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point=100) AS "tutorialUnlock"
-      FROM attempt a
-      JOIN food f ON f.food_id = a.food_id
-      JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
-      GROUP BY a.food_id, f.food_name
+
+        MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END) AS "highestPoint",
+        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END) AS "numberOfAttempts",
+        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100) AS "tutorialUnlock"
+
+      FROM food f
+      LEFT JOIN attempt a
+        ON a.food_id = f.food_id
+      AND a.user_id = ${u[0].userId}
+
+      LEFT JOIN "user" u
+        ON u.user_id = ${u[0].userId}
+      AND u.date_deleted IS NULL
+
+      GROUP BY f.food_id, f.food_name
     `)
+
+
 
     // Overall stats
     const statsRes = await db.execute(sql`
+      WITH ach AS (
+        SELECT
+          COUNT(*)::int AS total_achievements
+        FROM user_achievement ua
+        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
+        JOIN "user" u ON u.user_id = ua.user_id
+        WHERE ua.user_id = ${u[0].userId}
+          AND u.date_deleted IS NULL
+          AND ua.progress = ach.achievement_requirement
+      )
       SELECT
-        COUNT(*)::int AS "totalAttempts",
-        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints"
+        COUNT(a.attempt_id)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
+        (SELECT total_achievements FROM ach) AS "totalAchievements"
       FROM attempt a
       JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
+      WHERE a.user_id = ${u[0].userId}
+        AND u.date_deleted IS NULL
     `)
+
     const stats = statsRes.rows.length ? statsRes.rows[0] as {
       totalAttempts: number
       totalPoints: number
-    } : { totalAttempts: 0, totalPoints: 0 }
+      totalAchievements: number
+    } : { totalAttempts: 0, totalPoints: 0, totalAchievements: 0 }
 
     // Achievements
     const achievementsRes = await db.execute(sql`
@@ -107,6 +131,7 @@ export class GameService {
         foodId: string
         foodName: string
         highestPoint: number
+        numberOfAttempts: number
         tutorialUnlock: boolean
       }[],
       stats,
@@ -138,30 +163,52 @@ export class GameService {
     // Per-food stats
     const attempts = await db.execute(sql`
       SELECT
-        a.food_id   AS "foodId",
+        f.food_id AS "foodId",
         f.food_name AS "foodName",
-        MAX(a.attempt_point) AS "highestPoint",
-        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point=100) AS "tutorialUnlock"
-      FROM attempt a
-      JOIN food f ON f.food_id = a.food_id
-      JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
-      GROUP BY a.food_id, f.food_name
+
+        MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END) AS "highestPoint",
+        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END) AS "numberOfAttempts",
+        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100) AS "tutorialUnlock"
+
+      FROM food f
+      LEFT JOIN attempt a
+        ON a.food_id = f.food_id
+      AND a.user_id = ${u[0].userId}
+
+      LEFT JOIN "user" u
+        ON u.user_id = ${u[0].userId}
+      AND u.date_deleted IS NULL
+
+      GROUP BY f.food_id, f.food_name
     `)
 
     // Overall stats
     const statsRes = await db.execute(sql`
+      WITH ach AS (
+        SELECT
+          COUNT(*)::int AS total_achievements
+        FROM user_achievement ua
+        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
+        JOIN "user" u ON u.user_id = ua.user_id
+        WHERE ua.user_id = ${u[0].userId}
+          AND u.date_deleted IS NULL
+          AND ua.progress = ach.achievement_requirement
+      )
       SELECT
-        COUNT(*)::int AS "totalAttempts",
-        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints"
+        COUNT(a.attempt_id)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
+        (SELECT total_achievements FROM ach) AS "totalAchievements"
       FROM attempt a
       JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId} AND u.date_deleted IS NULL
+      WHERE a.user_id = ${u[0].userId}
+        AND u.date_deleted IS NULL
     `)
+
     const stats = statsRes.rows.length ? statsRes.rows[0] as {
       totalAttempts: number
       totalPoints: number
-    } : { totalAttempts: 0, totalPoints: 0 }
+      totalAchievements: number
+    } : { totalAttempts: 0, totalPoints: 0, totalAchievements: 0 }
 
     // Achievements
     const achievementsRes = await db.execute(sql`
@@ -195,13 +242,13 @@ export class GameService {
         foodId: string
         foodName: string
         highestPoint: number
+        numberOfAttempts: number
         tutorialUnlock: boolean
       }[],
       stats,
       achievements
     }
   }
-
 
 
   async refresh(token: string) {
