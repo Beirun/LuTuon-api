@@ -53,22 +53,21 @@ export class GameService {
         f.food_id AS "foodId",
         f.food_name AS "foodName",
 
-        MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END) AS "highestPoint",
-        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END) AS "numberOfAttempts",
-        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100) AS "tutorialUnlock"
+        COALESCE(MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END), 0)::int AS "highestPoint",
+        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END)::int AS "numberOfAttempts",
+        COALESCE(BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100), FALSE) AS "tutorialUnlock"
 
       FROM food f
       LEFT JOIN attempt a
         ON a.food_id = f.food_id
-      AND a.user_id = ${u[0].userId}
+        AND a.user_id = ${u[0].userId}
 
       LEFT JOIN "user" u
         ON u.user_id = ${u[0].userId}
-      AND u.date_deleted IS NULL
+        AND u.date_deleted IS NULL
 
       GROUP BY f.food_id, f.food_name
     `)
-
 
 
     // Overall stats
@@ -166,21 +165,22 @@ export class GameService {
         f.food_id AS "foodId",
         f.food_name AS "foodName",
 
-        MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END) AS "highestPoint",
-        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END) AS "numberOfAttempts",
-        BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100) AS "tutorialUnlock"
+        COALESCE(MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END), 0)::int AS "highestPoint",
+        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END)::int AS "numberOfAttempts",
+        COALESCE(BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100), FALSE) AS "tutorialUnlock"
 
       FROM food f
       LEFT JOIN attempt a
         ON a.food_id = f.food_id
-      AND a.user_id = ${u[0].userId}
+        AND a.user_id = ${u[0].userId}
 
       LEFT JOIN "user" u
         ON u.user_id = ${u[0].userId}
-      AND u.date_deleted IS NULL
+        AND u.date_deleted IS NULL
 
       GROUP BY f.food_id, f.food_name
     `)
+
 
     // Overall stats
     const statsRes = await db.execute(sql`
