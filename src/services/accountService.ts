@@ -12,7 +12,7 @@ import { avatar } from "../schema/avatar";
 import { Response, Request } from "express";
 import { log } from "../schema/log";
 import dotEnv from "dotenv";
-import { generateUsername } from "config/username";
+import { generateUsername } from "../config/username";
 
 dotEnv.config();
 
