@@ -6,6 +6,7 @@ const router = Router();
 
 router.get("/user", authenticateToken, NotificationController.getNotificationsByUser);
 router.put("/:notificationId", authenticateToken, NotificationController.updateNotificationStatus);
+router.put("/all", authenticateToken, NotificationController.markAllNotificationsAsRead);
 router.delete("/:notificationId", authenticateToken, NotificationController.deleteNotification);
 
 export default router;

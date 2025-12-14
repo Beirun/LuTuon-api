@@ -23,6 +23,7 @@ export class GameService {
   }
 
   async login(email: string, password: string, ip: string, isGoogle: boolean = false) {
+    email = validateEmail(email)
     const u = await db.select().from(user)
       .where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
     if (u.length === 0) throw new Error("User not found")
@@ -280,6 +281,7 @@ export class GameService {
       .where(and(eq(user.userName, newUsername), isNull(user.dateDeleted))).limit(1)
     if (taken.length > 0) throw new Error("Username already taken")
 
+    newUsername = validateUsername(newUsername)
     const old = await db.select({ userName: user.userName })
       .from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
     const oldName = old.length ? old[0].userName : ""
@@ -291,6 +293,7 @@ export class GameService {
     await this.addLog(userId, `Username changed from ${oldName} to ${newUsername}`)
     return { message: "Username updated successfully", userName: newUsername }
   }
+
 
   async updateAvatar(userId: string, avatarId: string) {
     const avtr = await db.select().from(avatar)
@@ -305,4 +308,37 @@ export class GameService {
     await this.addLog(userId, `Avatar changed to ${avtr[0].avatarName}`)
     return { message: "Avatar updated successfully" }
   }
+}
+
+function validateEmail(email: string) {
+  if (typeof email !== "string") throw new Error("Invalid email");
+
+  const e = email.trim().toLowerCase();
+
+  if (e.length < 6 || e.length > 254)
+    throw new Error("Email length is invalid");
+
+  const re = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+  if (!re.test(e)) throw new Error("Invalid email format");
+
+  if (e.includes("..") || e.startsWith(".") || e.endsWith("."))
+    throw new Error("Invalid email format");
+
+  return e;
+}
+function validateUsername(username: string) {
+  if (typeof username !== "string") throw new Error("Invalid username");
+
+  const u = username.trim();
+
+  if (u.length < 3 || u.length > 16)
+    throw new Error("Username must be between 3 and 16 characters");
+
+  if (u.includes(" ")) throw new Error("Username must not contain spaces");
+
+  const allowed = /^[A-Za-z0-9._-]+$/;
+  if (!allowed.test(u)) throw new Error("Username contains invalid characters");
+
+  return u;
 }

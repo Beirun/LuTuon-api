@@ -16,6 +16,7 @@ export class FeedbackService {
   }
 
   async createFeedback(userId: string, feedbackMessage: string) {
+    feedbackMessage = validateFeedback(feedbackMessage)
     const newFeedback = { feedbackId: uuidv4(), userId, feedbackMessage, feedbackDate: new Date() }
     await db.insert(feedback).values(newFeedback)
     await this.addLog(userId, "Submitted a feedback")
@@ -47,4 +48,23 @@ export class FeedbackService {
     await db.delete(feedback).where(eq(feedback.feedbackId, feedbackId))
     return { message: "Feedback deleted successfully" }
   }
+}
+
+function validateFeedback(feedback: string) {
+  if (typeof feedback !== "string")
+    throw new Error("Invalid feedback")
+
+  const f = feedback.trim()
+
+  if (f.length === 0)
+    throw new Error("Feedback cannot be empty or only whitespace")
+
+  if(f.length < 5)
+    throw new Error("Feedback cannot be less than 5 characters")
+  
+  if (f.length > 1000)
+    throw new Error("Feedback cannot exceed 1000 characters")
+
+
+  return f
 }

@@ -1,22 +1,23 @@
 // services/accountService.ts
-import { db } from "../config/db"
-import { user } from "../schema/user"
-import { refreshToken } from "../schema/refreshToken"
-import { role } from "../schema/role"
-import { eq, sql, isNull, and, desc } from "drizzle-orm"
-import bcryptjs from "bcryptjs"
-import jwt from "jsonwebtoken"
-import { v4 as uuidv4 } from "uuid"
+import { db } from "../config/db";
+import { user } from "../schema/user";
+import { refreshToken } from "../schema/refreshToken";
+import { role } from "../schema/role";
+import { eq, sql, isNull, and, desc } from "drizzle-orm";
+import bcryptjs from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
 import { notification } from "../schema/notification";
-import { avatar } from "../schema/avatar"
-import { Response, Request } from "express"
-import { log } from "../schema/log"
-import dotEnv from 'dotenv';
+import { avatar } from "../schema/avatar";
+import { Response, Request } from "express";
+import { log } from "../schema/log";
+import dotEnv from "dotenv";
+import { generateUsername } from "config/username";
 
 dotEnv.config();
 
-const ACCESS_TOKEN_EXPIRY = "1h"
-const REFRESH_TOKEN_EXPIRY_DAYS = 7
+const ACCESS_TOKEN_EXPIRY = "1h";
+const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 export class AccountService {
   private async addLog(userId: string, description: string) {
@@ -25,31 +26,38 @@ export class AccountService {
       userId,
       logDescription: description,
       logDate: new Date(),
-    })
+    });
   }
 
   async register(data: {
-    email: string
-    username: string
-    password: string
-    dob: Date
-    confirmPassword: string
+    email: string;
+    username: string;
+    password: string;
+    dob: Date;
+    confirmPassword: string;
   }) {
-    const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    if (data.password !== data.confirmPassword)
+      throw new Error("Passwords do not match");
+    if (!data.email || !data.password || !data.confirmPassword)
+      throw new Error("Input all fields");
+    data.email = validateEmail(data.email);
+    data.username = validateUsername(data.username);
+    data.password = validatePassword(data.password);
+    data.confirmPassword = validatePassword(data.confirmPassword);
 
-    if (!data.email || !data.password || !data.confirmPassword) throw new Error("Input all fields")
+    const hashed = await bcryptjs.hash(data.password, 10);
+    const randomAvatarId = await db
+      .select()
+      .from(avatar)
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
 
-    if (!validateEmail(data.email)) throw new Error("Enter a valid email")
-
-    if (data.password !== data.confirmPassword) throw new Error("Passwords do not match")
-
-    if (data.password.length < 8) throw new Error("Password must be at least 8 characters long")
-
-    const hashed = await bcryptjs.hash(data.password, 10)
-    const randomAvatarId = await db.select().from(avatar).orderBy(sql`RANDOM()`).limit(1)
-
-    const found = await db.select().from(user).where(and(eq(user.userEmail, data.email), isNull(user.dateDeleted))).limit(1)
-    if (found.length !== 0) throw new Error("Email is already taken")
+    const found = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userEmail, data.email), isNull(user.dateDeleted)))
+      .limit(1);
+    if (found.length !== 0) throw new Error("Email is already taken");
 
     const newUser = {
       userId: uuidv4(),
@@ -60,13 +68,16 @@ export class AccountService {
       userDob: data.dob,
       dateCreated: new Date(),
       avatarId: randomAvatarId[0].avatarId,
-    }
+    };
 
-    await db.insert(user).values(newUser)
-    await this.addLog(newUser.userId, "User registered")
+    await db.insert(user).values(newUser);
+    await this.addLog(newUser.userId, "User registered");
 
     // Notify all admins
-    const admins = await db.select().from(user).where(eq(user.roleId, process.env.ADMIN_ROLE as string))
+    const admins = await db
+      .select()
+      .from(user)
+      .where(eq(user.roleId, process.env.ADMIN_ROLE as string));
     for (const admin of admins) {
       await db.insert(notification).values({
         notificationId: uuidv4(),
@@ -75,7 +86,7 @@ export class AccountService {
         notificationMessage: `User ${newUser.userName} has just registered.`,
         notificationStatus: "unread",
         notificationDate: new Date(),
-      })
+      });
     }
 
     // Welcome notification for the newly registered user
@@ -86,33 +97,39 @@ export class AccountService {
       notificationMessage: `Hi ${newUser.userName}, welcome! We're excited to have you here.`,
       notificationStatus: "unread",
       notificationDate: new Date(),
-    })
+    });
 
-    return { message: "Registered successfully" }
+    return { message: "Registered successfully" };
   }
 
   async login(email: string, password: string, ip: string, res: Response) {
-    if (!email || !password) throw new Error("Input all fields")
+    if (!email || !password) throw new Error("Input all fields");
+    email = validateEmail(email);
+    const found = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userEmail, email), isNull(user.dateDeleted)))
+      .limit(1);
+    if (found.length === 0) throw new Error("Email not found");
 
-    const found = await db.select().from(user).where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
-    if (found.length === 0) throw new Error("Email not found")
+    const valid = await bcryptjs.compare(password, found[0].passwordHash);
+    if (!valid) throw new Error("Incorrect password");
 
-    const valid = await bcryptjs.compare(password, found[0].passwordHash)
-    if (!valid) throw new Error("Incorrect password")
+    const payload = { userId: found[0].userId, roleId: found[0].roleId };
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
 
-    const payload = { userId: found[0].userId, roleId: found[0].roleId }
-    const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
-
-    const refreshTokenValue = uuidv4()
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS)
+    const refreshTokenValue = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
 
     await db.insert(refreshToken).values({
       userId: found[0].userId,
       token: refreshTokenValue,
       ipAddress: ip,
       expiresAt,
-    })
+    });
 
     const cookieOptions = {
       httpOnly: true,
@@ -120,21 +137,20 @@ export class AccountService {
       // Fix the logic based on environment
       ...(process.env.NODE_ENV === "production"
         ? {
-          secure: true,
-          sameSite: "none" as const,
-          // Optional: set domain for production
-          // domain: ".yourdomain.com" 
-        }
+            secure: true,
+            sameSite: "none" as const,
+            // Optional: set domain for production
+            // domain: ".yourdomain.com"
+          }
         : {
-          secure: false,
-          sameSite: "lax" as const
-        }
-      )
-    }
+            secure: false,
+            sameSite: "lax" as const,
+          }),
+    };
 
-    res.cookie("refreshToken", refreshTokenValue, cookieOptions)
+    res.cookie("refreshToken", refreshTokenValue, cookieOptions);
 
-    await this.addLog(found[0].userId, "User logged in")
+    await this.addLog(found[0].userId, "User logged in");
 
     return {
       token,
@@ -145,30 +161,46 @@ export class AccountService {
         userDob: found[0].userDob,
         avatarId: found[0].avatarId,
       },
-    }
+    };
   }
 
   async google(email: string, username: string, ip: string, res: Response) {
-    let found = await db.select().from(user).where(and(eq(user.userEmail, email), isNull(user.dateDeleted))).limit(1)
+    let found = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userEmail, email), isNull(user.dateDeleted)))
+      .limit(1);
     let message = null;
     if (found.length === 0) {
-      const randomAvatarId = await db.select().from(avatar).orderBy(sql`RANDOM()`).limit(1)
+      const randomAvatarId = await db
+        .select()
+        .from(avatar)
+        .orderBy(sql`RANDOM()`)
+        .limit(1);
 
+      try {
+        username = validateUsername(username);
+      } catch {
+        username = generateUsername();
+      }
       const newUser = {
         userId: uuidv4(),
         roleId: "30aa10d1-82fe-4738-aa13-c6dc27db9ca1",
         userEmail: email,
         userName: username,
-        passwordHash: '',
-        userDob: new Date('1/1/2000'),
+        passwordHash: "",
+        userDob: new Date("1/1/2000"),
         dateCreated: new Date(),
         avatarId: randomAvatarId[0].avatarId,
-      }
-      found = await db.insert(user).values(newUser).returning()
-      await this.addLog(newUser.userId, "User registered")
+      };
+      found = await db.insert(user).values(newUser).returning();
+      await this.addLog(newUser.userId, "User registered");
 
       // Notify all admins
-      const admins = await db.select().from(user).where(eq(user.roleId, process.env.ADMIN_ROLE as string))
+      const admins = await db
+        .select()
+        .from(user)
+        .where(eq(user.roleId, process.env.ADMIN_ROLE as string));
       for (const admin of admins) {
         await db.insert(notification).values({
           notificationId: uuidv4(),
@@ -177,7 +209,7 @@ export class AccountService {
           notificationMessage: `User ${newUser.userName} has just registered.`,
           notificationStatus: "unread",
           notificationDate: new Date(),
-        })
+        });
       }
       // Welcome notification for the newly registered user
       await db.insert(notification).values({
@@ -187,24 +219,25 @@ export class AccountService {
         notificationMessage: `Hi ${newUser.userName}, welcome! We're excited to have you here.`,
         notificationStatus: "unread",
         notificationDate: new Date(),
-      })
-      message = "Registered successfully"
+      });
+      message = "Registered successfully";
     }
 
+    const payload = { userId: found[0].userId, roleId: found[0].roleId };
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
 
-    const payload = { userId: found[0].userId, roleId: found[0].roleId }
-    const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
-
-    const refreshTokenValue = uuidv4()
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS)
+    const refreshTokenValue = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
 
     await db.insert(refreshToken).values({
       userId: found[0].userId,
       token: refreshTokenValue,
       ipAddress: ip,
       expiresAt,
-    })
+    });
 
     const cookieOptions = {
       httpOnly: true,
@@ -212,23 +245,22 @@ export class AccountService {
       // Fix the logic based on environment
       ...(process.env.NODE_ENV === "production"
         ? {
-          secure: true,
-          sameSite: "none" as const,
-          // Optional: set domain for production
-          // domain: ".yourdomain.com" 
-        }
+            secure: true,
+            sameSite: "none" as const,
+            // Optional: set domain for production
+            // domain: ".yourdomain.com"
+          }
         : {
-          secure: false,
-          sameSite: "lax" as const
-        }
-      )
-    }
+            secure: false,
+            sameSite: "lax" as const,
+          }),
+    };
 
-    res.cookie("refreshToken", refreshTokenValue, cookieOptions)
+    res.cookie("refreshToken", refreshTokenValue, cookieOptions);
 
-    console.log(refreshTokenValue)
+    console.log(refreshTokenValue);
 
-    await this.addLog(found[0].userId, "User logged in")
+    await this.addLog(found[0].userId, "User logged in");
     message = message ?? "Logged in successfully";
     return {
       message,
@@ -240,69 +272,107 @@ export class AccountService {
         userDob: found[0].userDob,
         avatarId: found[0].avatarId,
       },
-    }
+    };
   }
 
   async refresh(ip: string, req: Request, _res: Response) {
-    const oldToken = req.cookies.refreshToken
-    console.log("old token", oldToken)
-    if (!oldToken) throw new Error("No refresh token provided")
+    const oldToken = req.cookies.refreshToken;
+    console.log("old token", oldToken);
+    if (!oldToken) throw new Error("No refresh token provided");
 
-    const found = await db.select(
-      {
+    const found = await db
+      .select({
         revokedAt: refreshToken.revokedAt,
         expiresAt: refreshToken.expiresAt,
         userId: user.userId,
-        roleId: user.roleId
-      }
-    )
+        roleId: user.roleId,
+      })
       .from(refreshToken)
       .where(eq(refreshToken.token, oldToken))
       .leftJoin(user, eq(user.userId, refreshToken.userId))
       .orderBy(desc(refreshToken.expiresAt))
-      .limit(1)
-    if (found.length === 0) throw new Error("Invalid refresh token")
+      .limit(1);
+    if (found.length === 0) throw new Error("Invalid refresh token");
 
-    const tokenRow = found[0]
+    const tokenRow = found[0];
     if (tokenRow.revokedAt || new Date(tokenRow.expiresAt) < new Date()) {
-      throw new Error("Refresh token expired or revoked")
+      throw new Error("Refresh token expired or revoked");
     }
 
-    const payload = { userId: tokenRow.userId, roleId: tokenRow.roleId }
-    const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
+    const payload = { userId: tokenRow.userId, roleId: tokenRow.roleId };
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
 
-    await this.addLog(tokenRow.userId!, "Access token refreshed")
-    return { token }
+    await this.addLog(tokenRow.userId!, "Access token refreshed");
+    return { token };
   }
 
-  async update(userId: string, updates: { userName?: string; userEmail?: string; oldPassword?: string; newPassword?: string; confirmPassword: string; userDob?: string; avatarId?: string }) {
-    const dataToUpdate: any = {}
-    const foundUser = await db.select().from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1);
+  async update(
+    userId: string,
+    updates: {
+      userName?: string;
+      userEmail?: string;
+      oldPassword?: string;
+      newPassword?: string;
+      confirmPassword: string;
+      userDob?: string;
+      avatarId?: string;
+    }
+  ) {
+    const dataToUpdate: any = {};
+    const foundUser = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
     if (foundUser.length === 0) throw new Error("User not found");
 
-    if (updates.userName && updates.userName !== foundUser[0].userName) dataToUpdate.userName = updates.userName
-
-    if (updates.userEmail && updates.userEmail !== foundUser[0].userEmail){
-      const found = await db.select().from(user).where(and(eq(user.userEmail, updates.userEmail), isNull(user.dateDeleted))).limit(1)
-      if (found.length !== 0) throw new Error("Email is already taken")
-      dataToUpdate.userEmail = updates.userEmail
+    if (updates.userName && updates.userName !== foundUser[0].userName) {
+      dataToUpdate.userName = validateUsername(updates.userName);
     }
 
-    if (updates.avatarId && updates.avatarId !== foundUser[0].avatarId) dataToUpdate.avatarId = updates.avatarId
+    if (updates.userEmail && updates.userEmail !== foundUser[0].userEmail) {
+      const found = await db
+        .select()
+        .from(user)
+        .where(
+          and(eq(user.userEmail, updates.userEmail), isNull(user.dateDeleted))
+        )
+        .limit(1);
+      if (found.length !== 0) throw new Error("Email is already taken");
+      dataToUpdate.userEmail = validateEmail(updates.userEmail);
+    }
 
-    if (updates.userDob && updates.userDob !== foundUser[0].userDob.toISOString()) dataToUpdate.userDob = new Date(updates.userDob)
+    if (updates.avatarId && updates.avatarId !== foundUser[0].avatarId)
+      dataToUpdate.avatarId = updates.avatarId;
+
+    if (
+      updates.userDob &&
+      updates.userDob !== foundUser[0].userDob.toISOString()
+    )
+      dataToUpdate.userDob = new Date(updates.userDob);
 
     if (updates.newPassword) {
-      if (updates.newPassword.length < 8) throw new Error("New Password must be atleast 8 characters long");
-      if (updates.newPassword !== updates.confirmPassword) throw new Error("New password and confirm password do not match");
-      if (foundUser[0].passwordHash && !updates.oldPassword) throw new Error("Please enter your old password");
+      updates.newPassword = validatePassword(updates.newPassword);
+      updates.confirmPassword = validatePassword(updates.confirmPassword);
+
+      if(updates.newPassword !== updates.confirmPassword)
+        throw new Error("Passwords do not match");
+
+      if (foundUser[0].passwordHash && !updates.oldPassword)
+        throw new Error("Please enter your old password");
+
       if (updates.oldPassword && !foundUser[0].passwordHash) {
-        const valid = await bcryptjs.compare(updates.oldPassword, foundUser[0].passwordHash);
+        const valid = await bcryptjs.compare(
+          updates.oldPassword,
+          foundUser[0].passwordHash
+        );
         if (!valid) throw new Error("Incorrect Old Password");
       }
       dataToUpdate.passwordHash = await bcryptjs.hash(updates.newPassword, 10);
     }
-    if (JSON.stringify(dataToUpdate) === '{}') {
+    if (JSON.stringify(dataToUpdate) === "{}") {
       return {
         status: 200,
         message: "No changes have been made",
@@ -313,16 +383,29 @@ export class AccountService {
           userDob: foundUser[0].userDob,
           avatarId: foundUser[0].avatarId,
         },
-      }
+      };
     }
 
-    dataToUpdate.dateUpdated = new Date()
+    dataToUpdate.dateUpdated = new Date();
     if (dataToUpdate.userEmail) {
-      const found = await db.select().from(user).where(and(eq(user.userEmail, dataToUpdate.userEmail), isNull(user.dateDeleted))).limit(1)
-      if (found.length === 0) throw new Error("Email already taken")
+      const found = await db
+        .select()
+        .from(user)
+        .where(
+          and(
+            eq(user.userEmail, dataToUpdate.userEmail),
+            isNull(user.dateDeleted)
+          )
+        )
+        .limit(1);
+      if (found.length === 0) throw new Error("Email already taken");
     }
-    const updatedUser = await db.update(user).set(dataToUpdate).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).returning()
-    await this.addLog(userId, "User profile updated")
+    const updatedUser = await db
+      .update(user)
+      .set(dataToUpdate)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .returning();
+    await this.addLog(userId, "User profile updated");
     return {
       status: 201,
       message: "Profile updated successfully",
@@ -333,43 +416,70 @@ export class AccountService {
         userDob: updatedUser[0].userDob,
         avatarId: updatedUser[0].avatarId,
       },
-    }
+    };
   }
 
   async delete(userId: string, req: Request, res: Response) {
-    const foundUser = await db.select().from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
-    if (foundUser.length === 0) throw new Error("User not found or already deleted")
+    const foundUser = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
+    if (foundUser.length === 0)
+      throw new Error("User not found or already deleted");
 
-    await db.update(user).set({ dateDeleted: new Date() }).where(eq(user.userId, userId))
+    await db
+      .update(user)
+      .set({ dateDeleted: new Date() })
+      .where(eq(user.userId, userId));
 
-    const token = req.cookies.refreshToken
+    const token = req.cookies.refreshToken;
 
-    if (token) await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token))
+    if (token)
+      await db
+        .update(refreshToken)
+        .set({ revokedAt: new Date() })
+        .where(eq(refreshToken.token, token));
 
-    res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "none" })
-    await this.addLog(userId, "User deleted their account")
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+    });
+    await this.addLog(userId, "User deleted their account");
     return {
-      message: "Account deleted successfully"
-    }
+      message: "Account deleted successfully",
+    };
   }
 
-
   async logout(req: Request, res: Response) {
-    const token = req.cookies.refreshToken
-    console.log("token", req.cookies.refreshToken)
+    const token = req.cookies.refreshToken;
+    console.log("token", req.cookies.refreshToken);
     if (token) {
-      console.log('12')
-      const user = await db.update(refreshToken).set({ revokedAt: new Date() }).where(eq(refreshToken.token, token)).returning()
-      await this.addLog(user[0].userId, "User logged out")
+      console.log("12");
+      const user = await db
+        .update(refreshToken)
+        .set({ revokedAt: new Date() })
+        .where(eq(refreshToken.token, token))
+        .returning();
+      await this.addLog(user[0].userId, "User logged out");
     }
 
-    res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "none" })
-    return { message: "Logged out successfully" }
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "none",
+    });
+    return { message: "Logged out successfully" };
   }
 
   async getMe(userId: string) {
-    const result = await db.select().from(user).where(and(eq(user.userId, userId), isNull(user.dateDeleted))).limit(1)
-    return result[0]
+    const result = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
+    return result[0];
   }
 
   async getAllUsers() {
@@ -381,15 +491,79 @@ export class AccountService {
         userDob: user.userDob,
         roleName: role.roleName,
         dateCreated: user.dateCreated,
-        dateDeleted: user.dateDeleted
+        dateDeleted: user.dateDeleted,
       })
       .from(user)
       .leftJoin(role, eq(user.roleId, role.roleId))
-      .orderBy(desc(user.dateCreated))
+      .orderBy(desc(user.dateCreated));
   }
 
   async getUserById(id: string) {
-    const result = await db.select().from(user).where(and(eq(user.userId, id), isNull(user.dateDeleted))).limit(1)
-    return result[0]
+    const result = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, id), isNull(user.dateDeleted)))
+      .limit(1);
+    return result[0];
   }
+}
+function validatePassword(password: string) {
+  if (typeof password !== "string") throw new Error("Invalid password");
+
+  if (password.length < 8 || password.length > 64)
+    throw new Error("Password must be between 8 and 64 characters");
+
+  if (password.trim().length === 0)
+    throw new Error("Password cannot be only whitespace");
+
+  const allowed = /^[A-Za-z0-9 ~`!@#$%^&*()\-_+={}[\]|\\;:"<>,./?]+$/;
+  if (!allowed.test(password))
+    throw new Error("Password contains invalid characters");
+
+  if (!/[a-z]/.test(password))
+    throw new Error("Password must contain a lowercase letter");
+
+  if (!/[A-Z]/.test(password))
+    throw new Error("Password must contain an uppercase letter");
+
+  if (!/[0-9]/.test(password))
+    throw new Error("Password must contain a number");
+
+  if (!/[~`!@#$%^&*()\-_+={}[\]|\\;:"<>,./?]/.test(password))
+    throw new Error("Password must contain a special character");
+
+  return password;
+}
+
+function validateEmail(email: string) {
+  if (typeof email !== "string") throw new Error("Invalid email");
+
+  const e = email.trim().toLowerCase();
+
+  if (e.length < 6 || e.length > 254)
+    throw new Error("Email length is invalid");
+
+  const re = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+  if (!re.test(e)) throw new Error("Invalid email format");
+
+  if (e.includes("..") || e.startsWith(".") || e.endsWith("."))
+    throw new Error("Invalid email format");
+
+  return e;
+}
+function validateUsername(username: string) {
+  if (typeof username !== "string") throw new Error("Invalid username");
+
+  const u = username.trim();
+
+  if (u.length < 3 || u.length > 16)
+    throw new Error("Username must be between 3 and 16 characters");
+
+  if (u.includes(" ")) throw new Error("Username must not contain spaces");
+
+  const allowed = /^[A-Za-z0-9._-]+$/;
+  if (!allowed.test(u)) throw new Error("Username contains invalid characters");
+
+  return u;
 }

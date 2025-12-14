@@ -6,7 +6,6 @@ const notificationService = new NotificationService();
 
 export class NotificationController {
 
-
   // Get all by user
   static async getNotificationsByUser(req: AuthRequest, res: Response) {
     try {
@@ -17,13 +16,23 @@ export class NotificationController {
     }
   }
 
-  // Update status
+  // Update single status
   static async updateNotificationStatus(req: Request, res: Response) {
     try {
       const { notificationId } = req.params;
       const { status } = req.body;
 
       const updated = await notificationService.updateNotificationStatus(notificationId, status);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  // Mark all as read
+  static async markAllNotificationsAsRead(req: AuthRequest, res: Response) {
+    try {
+      const updated = await notificationService.markAllAsRead(req.user.userId);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
