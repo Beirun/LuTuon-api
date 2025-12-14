@@ -30,9 +30,10 @@ export class NotificationController {
   }
 
   // Mark all as read
-  static async markAllNotificationsAsRead(req: AuthRequest, res: Response) {
+  static async markAllNotificationsAsRead(req: Request, res: Response) {
     try {
-      const updated = await notificationService.markAllAsRead(req.user.userId);
+      const { notificationIds } = req.body
+      const updated = await notificationService.markAllAsRead(notificationIds);
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });

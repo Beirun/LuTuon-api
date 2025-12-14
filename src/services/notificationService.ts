@@ -1,6 +1,6 @@
 import { db } from "../config/db";
 import { notification } from "../schema/notification";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export class NotificationService {
   // Get all notifications for a specific user
@@ -11,11 +11,13 @@ export class NotificationService {
       .where(eq(notification.userId, userId));
   }
 
-  async markAllAsRead(userId: string) {
+  async markAllAsRead(notificationIds: string[]) {
+    if (!notificationIds || notificationIds.length === 0) return [];
+
     const updatedNotifications = await db
       .update(notification)
-      .set({ notificationStatus: "read" })
-      .where(eq(notification.userId, userId))
+      .set({ notificationStatus: "read" as const })
+      .where(inArray(notification.notificationId, notificationIds))
       .returning();
 
     return updatedNotifications;
