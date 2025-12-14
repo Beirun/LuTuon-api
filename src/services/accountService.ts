@@ -557,8 +557,8 @@ function validateUsername(username: string) {
 
   const u = username.trim();
 
-  if (u.length < 3 || u.length > 16)
-    throw new Error("Username must be between 3 and 16 characters");
+  if (u.length < 3 || u.length > 32)
+    throw new Error("Username must be between 3 and 32 characters");
 
   if (u.includes(" ")) throw new Error("Username must not contain spaces");
 
