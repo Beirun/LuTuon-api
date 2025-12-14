@@ -14,13 +14,13 @@ export class NotificationService {
   async markAllAsRead(notificationIds: string[]) {
     if (!notificationIds || notificationIds.length === 0) return [];
 
-    const updatedNotifications = await db
-      .update(notification)
-      .set({ notificationStatus: "read" as const })
-      .where(inArray(notification.notificationId, notificationIds))
-      .returning();
+    const updated = await db
+    .update(notification)
+    .set({ notificationStatus: "read" as const })
+    .where(inArray(notification.notificationId, notificationIds))
+    .returning();
 
-    return updatedNotifications;
+    return updated;
   }
 
   // Update notification status (e.g., "read")
