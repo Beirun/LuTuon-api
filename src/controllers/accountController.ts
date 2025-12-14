@@ -12,7 +12,7 @@ export class AccountController {
         email: req.body.email,
         username: generateUsername(),
         password: req.body.password,
-        dob: new Date("1/1/2000"),
+        dob: new Date(req.body.birthdate),
         confirmPassword: req.body.confirmPassword,
       });
       res.status(201).json(result);
