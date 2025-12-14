@@ -3,7 +3,7 @@ import { db } from "../config/db";
 import { achievement } from "../schema/achievement";
 import { userAchievement } from "../schema/userAchievement";
 import { user } from "../schema/user";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export class AchievementService {
   async getAllAchievements() {
@@ -22,7 +22,8 @@ export class AchievementService {
         })
         .from(userAchievement)
         .leftJoin(user, eq(userAchievement.userId, user.userId))
-        .leftJoin(achievement, eq(userAchievement.achievementId, achievement.achievementId));
+        .leftJoin(achievement, eq(userAchievement.achievementId, achievement.achievementId))
+        .orderBy(desc(userAchievement.dateCompleted));
 
       return rows;
     } catch (e) {
@@ -43,7 +44,8 @@ export class AchievementService {
         })
         .from(userAchievement)
         .leftJoin(achievement, eq(userAchievement.achievementId, achievement.achievementId))
-        .where(eq(userAchievement.userId, userId));
+        .where(eq(userAchievement.userId, userId))
+        .orderBy(desc(userAchievement.dateCompleted));
 
       return rows;
     } catch (e) {

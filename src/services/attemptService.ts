@@ -24,8 +24,8 @@ export class AttemptService {
         .leftJoin(user, eq(attempt.userId, user.userId))
         .leftJoin(food, eq(attempt.foodId, food.foodId))
         .orderBy(desc(attempt.attemptDate));
-
-      return rows;
+        
+        return rows;
     } catch (e) {
       throw new Error("Failed to fetch attempts: " + (e as Error).message);
     }
@@ -46,7 +46,8 @@ export class AttemptService {
         .from(attempt)
         .leftJoin(user, eq(attempt.userId, user.userId))
         .leftJoin(food, eq(attempt.foodId, food.foodId))
-        .where(eq(user.userId, userId));
+        .where(eq(user.userId, userId))
+        .orderBy(desc(attempt.attemptDate));
 
       return rows;
     } catch (e) {

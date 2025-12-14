@@ -1,6 +1,6 @@
 import { db } from "../config/db";
 import { notification } from "../schema/notification";
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 
 export class NotificationService {
   // Get all notifications for a specific user
@@ -8,7 +8,8 @@ export class NotificationService {
     return await db
       .select()
       .from(notification)
-      .where(eq(notification.userId, userId));
+      .where(eq(notification.userId, userId))
+      .orderBy(desc(notification.notificationDate));
   }
 
   async markAllAsRead(notificationIds: string[]) {
