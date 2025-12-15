@@ -282,12 +282,11 @@ export class AttemptService {
 
     // count unique foodId in Standard Mode
     const completedDishes = await db
-      .select()
+      .selectDistinct()
       .from(attempt)
       .where(
         and(eq(attempt.userId, userId), eq(attempt.attemptType, "Standard"))
-      )
-      .groupBy(attempt.foodId);
+      );
 
     const totalDishes = await db.select().from(food);
 
