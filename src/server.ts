@@ -9,10 +9,13 @@ import notification from './routes/notification'
 import reset from './routes/resetPassword'
 import log from './routes/log'
 import game from './routes/game'
-
+import path from 'path';
 dotenv.config();
 
 const app = express();
+
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
