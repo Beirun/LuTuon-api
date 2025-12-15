@@ -3,10 +3,19 @@ import { db } from "../config/db";
 import { attempt } from "../schema/attempt";
 import { user } from "../schema/user";
 import { food } from "../schema/food";
+import { log } from "../schema/log";
 import { desc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 export class AttemptService {
+  private async addLog(userId: string, description: string) {
+      await db.insert(log).values({
+        logId: uuidv4(),
+        userId,
+        logDescription: description,
+        logDate: new Date(),
+      });
+    }
   async getAllAttempts() {
     try {
       const rows = await db
@@ -74,7 +83,8 @@ export class AttemptService {
         attemptDuration: data.attemptDuration,
         attemptType: data.attemptType,
       });
-
+      const [f] = await db.select().from(food).where(eq(food.foodId,data.foodId)).limit(1);
+      await this.addLog(data.userId, `Played ${data.attemptType} Mode of ${f.foodName}`);
       return { attemptId: newId, ...data };
     } catch (e) {
       throw new Error("Failed to create attempt: " + (e as Error).message);

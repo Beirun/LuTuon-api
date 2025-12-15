@@ -16,6 +16,7 @@ export class GameController {
       res.status(400).json({ error: e.message })
     }
   }
+  
 
   static async google(req: Request, res: Response) {
     const ip = req.ip || "unknown"
@@ -63,20 +64,44 @@ export class GameController {
     }
   }
 
-  static async profile(req: AuthRequest, res: Response) {
+  static async updateAvatar(req: AuthRequest, res: Response) {
     try {
-      const ip = req.ip || "unknown"
-      const result = await gameService.profile(req.user.userId, ip)
+      const { avatarId } = req.body
+      if (!avatarId) throw new Error("avatarId is required")
+        const result = await gameService.updateAvatar(req.user.userId, avatarId)
       res.json(result)
     } catch (e: any) {
       res.status(400).json({ error: e.message })
     }
   }
-  static async updateAvatar(req: AuthRequest, res: Response) {
+  static async getAchievements(req: AuthRequest, res: Response) {
     try {
-      const { avatarId } = req.body
-      if (!avatarId) throw new Error("avatarId is required")
-      const result = await gameService.updateAvatar(req.user.userId, avatarId)
+      const result = await gameService.getAchievements(req.user.userId)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
+  static async getAttempts(req: AuthRequest, res: Response) {
+    try {
+      const result = await gameService.getAttempts(req.user.userId)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
+  static async getStats(req: AuthRequest, res: Response) {
+    try {
+      const result = await gameService.getStats(req.user.userId)
+      res.json(result)
+    } catch (e: any) {
+      res.status(400).json({ error: e.message })
+    }
+  }
+  static async profile(req: AuthRequest, res: Response) {
+    try {
+      const ip = req.ip || "unknown"
+      const result = await gameService.profile(req.user.userId, ip)
       res.json(result)
     } catch (e: any) {
       res.status(400).json({ error: e.message })

@@ -3,7 +3,7 @@ import { db } from "../config/db";
 import { user } from "../schema/user";
 import { refreshToken } from "../schema/refreshToken";
 import { log } from "../schema/log";
-import { eq, sql, isNull, and, ne } from "drizzle-orm";
+import { eq, sql, isNull, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -21,6 +21,117 @@ export class GameService {
       logDate: new Date(),
     });
   }
+
+  async getAttempts(userId: string){
+    const u = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
+    if (u.length === 0) throw new Error("User not found");
+    const attempts = await db.execute(sql`
+      SELECT
+        f.food_id AS "foodId",
+        f.food_name AS "foodName",
+
+        COALESCE(MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END), 0)::int AS "highestPoint",
+        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END)::int AS "numberOfAttempts",
+        COALESCE(BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100), FALSE) AS "tutorialUnlock"
+
+      FROM food f
+      LEFT JOIN attempt a
+        ON a.food_id = f.food_id
+        AND a.user_id = ${u[0].userId}
+
+      LEFT JOIN "user" u
+        ON u.user_id = ${u[0].userId}
+        AND u.date_deleted IS NULL
+
+      GROUP BY f.food_id, f.food_name
+    `);
+
+    return {
+      attempts: attempts.rows as {
+        foodId: string;
+        foodName: string;
+        highestPoint: number;
+        numberOfAttempts: number;
+        tutorialUnlock: boolean;
+      }[]
+    }
+  }
+
+  async getAchievements(userId: string){
+    const u = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
+    if (u.length === 0) throw new Error("User not found");
+    // Achievements
+    const achievementsRes = await db.execute(sql`
+      SELECT
+        ua.achievement_id AS "achievementId",
+        ac.achievement_name AS "achievementName",
+        ua.progress,
+        ua.date_completed AS "dateCompleted"
+      FROM user_achievement ua
+      JOIN achievement ac ON ac.achievement_id = ua.achievement_id
+      WHERE ua.user_id = ${u[0].userId}
+    `);
+
+    const achievements = achievementsRes.rows as {
+      achievementId: string;
+      achievementName: string;
+      progress: number;
+      dateCompleted: Date;
+    }[];
+
+    return {
+      achievements
+    }
+  }
+
+  async getStats(userId: string){
+    const u = await db
+      .select()
+      .from(user)
+      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
+      .limit(1);
+    if (u.length === 0) throw new Error("User not found");
+    // Overall stats
+    const statsRes = await db.execute(sql`
+      WITH ach AS (
+        SELECT
+          COUNT(*)::int AS total_achievements
+        FROM user_achievement ua
+        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
+        JOIN "user" u ON u.user_id = ua.user_id
+        WHERE ua.user_id = ${u[0].userId}
+          AND u.date_deleted IS NULL
+          AND ua.progress = ach.achievement_requirement
+      )
+      SELECT
+        COUNT(a.attempt_id)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
+        (SELECT total_achievements FROM ach) AS "totalAchievements"
+      FROM attempt a
+      JOIN "user" u ON u.user_id = a.user_id
+      WHERE a.user_id = ${u[0].userId}
+        AND u.date_deleted IS NULL
+    `);
+
+    const stats = statsRes.rows.length
+      ? (statsRes.rows[0] as {
+          totalAttempts: number;
+          totalPoints: number;
+          totalAchievements: number;
+        })
+      : { totalAttempts: 0, totalPoints: 0, totalAchievements: 0 };
+
+      return {stats}
+  }
+
 
   async login(
     email: string,
