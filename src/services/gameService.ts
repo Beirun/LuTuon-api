@@ -321,7 +321,7 @@ export class GameService {
       }[],
       stats,
       achievements,
-      isFirstTimeLogin,
+      isFirstTimeLogin: isFirstTimeLogin.length === 0,
     };
   }
 
@@ -448,7 +448,7 @@ export class GameService {
       }[],
       stats,
       achievements,
-      isFirstTimeLogin,
+      isFirstTimeLogin: isFirstTimeLogin.length === 0,
     };
   }
 
