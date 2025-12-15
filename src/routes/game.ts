@@ -7,10 +7,12 @@ import { authenticateToken } from "../middlewares/auth"
 const router = Router()
 
 // Attempts
+router.get("/attempts", authenticateToken, AttemptController.getAttempts)
 router.get("/attempts/user", authenticateToken, AttemptController.getAttemptByUserId)
 router.post("/attempts", authenticateToken, AttemptController.postAttempt)
 
 // Achievements
+router.get("/achievements", authenticateToken, AchievementController.getAll)
 router.get("/achievements/user", authenticateToken, AchievementController.getByUser)
 router.post("/achievements", authenticateToken, AchievementController.add)
 router.put("/achievements", authenticateToken, AchievementController.update)
@@ -21,9 +23,9 @@ router.post("/google", GameController.google)
 router.post("/refresh", GameController.refresh)
 router.post("/logout", GameController.logout)
 router.get("/profile", authenticateToken, GameController.profile)
-router.get("/stats", authenticateToken, GameController.getStats)
-router.get("/achievements", authenticateToken, GameController.getAchievements)
-router.get("/attempts", authenticateToken, GameController.getAttempts)
+router.get("/profile/stats", authenticateToken, GameController.getStats)
+router.get("/profile/achievements", authenticateToken, GameController.getAchievements)
+router.get("/profile/attempts", authenticateToken, GameController.getAttempts)
 router.put("/username", authenticateToken, GameController.updateUsername)
 router.put("/avatar", authenticateToken, GameController.updateAvatar)
 
