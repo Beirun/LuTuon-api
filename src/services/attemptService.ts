@@ -4,18 +4,22 @@ import { attempt } from "../schema/attempt";
 import { user } from "../schema/user";
 import { food } from "../schema/food";
 import { log } from "../schema/log";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { userAchievement } from "../schema/userAchievement";
+import dotenv from "dotenv";
+import { achievement } from "../schema/achievement";
 
+dotenv.config();
 export class AttemptService {
   private async addLog(userId: string, description: string) {
-      await db.insert(log).values({
-        logId: uuidv4(),
-        userId,
-        logDescription: description,
-        logDate: new Date(),
-      });
-    }
+    await db.insert(log).values({
+      logId: uuidv4(),
+      userId,
+      logDescription: description,
+      logDate: new Date(),
+    });
+  }
   async getAllAttempts() {
     try {
       const rows = await db
@@ -33,8 +37,8 @@ export class AttemptService {
         .leftJoin(user, eq(attempt.userId, user.userId))
         .leftJoin(food, eq(attempt.foodId, food.foodId))
         .orderBy(desc(attempt.attemptDate));
-        
-        return rows;
+
+      return rows;
     } catch (e) {
       throw new Error("Failed to fetch attempts: " + (e as Error).message);
     }
@@ -83,13 +87,231 @@ export class AttemptService {
         attemptDuration: data.attemptDuration,
         attemptType: data.attemptType,
       });
-      const [f] = await db.select().from(food).where(eq(food.foodId,data.foodId)).limit(1);
-      await this.addLog(data.userId, `Played ${data.attemptType} Mode of ${f.foodName}`);
+
+      const [f] = await db
+        .select()
+        .from(food)
+        .where(eq(food.foodId, data.foodId))
+        .limit(1);
+
+      await this.addLog(
+        data.userId,
+        `Played ${data.attemptType} Mode of ${f.foodName}`
+      );
+
+      await this.checkAchievement(data.attemptPoint, data.userId)
       return { attemptId: newId, ...data };
     } catch (e) {
       throw new Error("Failed to create attempt: " + (e as Error).message);
     }
   }
+
+  async checkAchievement(point: number, userId: string) {
+  // First Flame: successfully cook first dish in Standard Mode with perfect score
+  if (point === 100) {
+    const [firstFlame] = await db
+      .select({
+        achievementId: userAchievement.achievementId,
+        achievementRequirement: achievement.achievementRequirement,
+        progress: userAchievement.progress,
+      })
+      .from(userAchievement)
+      .leftJoin(
+        achievement,
+        eq(userAchievement.achievementId, achievement.achievementId)
+      )
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.FIRST_FLAME_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+
+    if (firstFlame.progress < firstFlame.achievementRequirement!) {
+      await db
+        .update(userAchievement)
+        .set({ progress: 1, dateCompleted: new Date() })
+        .where(
+          and(
+            eq(userAchievement.achievementId, process.env.FIRST_FLAME_ID as string),
+            eq(userAchievement.userId, userId)
+          )
+        );
+    }
+  }
+
+  // The Perfectionist: perfect score in Standard Mode 5 times
+  if (point === 100) {
+    const [perf] = await db
+      .select({ progress: userAchievement.progress, dateCompleted: userAchievement.dateCompleted })
+      .from(userAchievement)
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.THE_PERFECTIONIST_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+
+    if (perf.progress < 5) {
+      await db
+        .update(userAchievement)
+        .set({ progress: perf.progress + 1, dateCompleted: perf.progress + 1 === 5 ? new Date() : perf.dateCompleted })
+        .where(
+          and(
+            eq(userAchievement.achievementId, process.env.THE_PERFECTIONIST_ID as string),
+            eq(userAchievement.userId, userId)
+          )
+        );
+    }
+  }
+
+  // Perfect Plating: perfect score on any dish
+  if (point === 100) {
+    const [perfectPlating] = await db
+      .select({ progress: userAchievement.progress })
+      .from(userAchievement)
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.PERFECT_PLATING_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+
+    if (perfectPlating.progress < 100) {
+      await db
+        .update(userAchievement)
+        .set({ progress: 100, dateCompleted: new Date() })
+        .where(
+          and(
+            eq(userAchievement.achievementId, process.env.PERFECT_PLATING_ID as string),
+            eq(userAchievement.userId, userId)
+          )
+        );
+    }
+  }
+
+  // Novice Chef: complete first 2 dishes in Standard Mode
+  const standardAttempts = await db
+    .select()
+    .from(attempt)
+    .where(
+      and(
+        eq(attempt.userId, userId),
+        eq(attempt.attemptType, "Standard")
+      )
+    );
+
+  const [novice] = await db
+    .select({ progress: userAchievement.progress })
+    .from(userAchievement)
+    .where(
+      and(
+        eq(userAchievement.achievementId, process.env.NOVICE_CHEF_ID as string),
+        eq(userAchievement.userId, userId)
+      )
+    );
+
+  if (novice.progress < 2 && standardAttempts.length >= 2) {
+    await db
+      .update(userAchievement)
+      .set({ progress: 2, dateCompleted: new Date() })
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.NOVICE_CHEF_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+  }
+
+  // Master Chef: complete all available dishes in Standard Mode
+  const [master] = await db
+    .select({ progress: userAchievement.progress })
+    .from(userAchievement)
+    .where(
+      and(
+        eq(userAchievement.achievementId, process.env.MASTER_CHEF_ID as string),
+        eq(userAchievement.userId, userId)
+      )
+    );
+
+  const totalDishes = await db.select().from(food);
+  if (master.progress < totalDishes.length && standardAttempts.length >= totalDishes.length) {
+    await db
+      .update(userAchievement)
+      .set({ progress: totalDishes.length, dateCompleted: new Date() })
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.MASTER_CHEF_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+  }
+
+  // Curious Cook: replay a tutorial
+  const [curious] = await db
+    .select({ progress: userAchievement.progress })
+    .from(userAchievement)
+    .where(
+      and(
+        eq(userAchievement.achievementId, process.env.CURIOUS_COOK_ID as string),
+        eq(userAchievement.userId, userId)
+      )
+    );
+
+  if (point < 100 && curious.progress < 1) {
+    await db
+      .update(userAchievement)
+      .set({ progress: 1, dateCompleted: new Date() })
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.CURIOUS_COOK_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+  }
+
+  // Getting the Hang of It: complete all tutorial lessons
+  const tutorialAttempts = await db
+    .select()
+    .from(attempt)
+    .where(
+      and(
+        eq(attempt.userId, userId),
+        eq(attempt.attemptType, "Tutorial")
+      )
+    );
+
+  const [gettingHang] = await db
+    .select({ progress: userAchievement.progress })
+    .from(userAchievement)
+    .where(
+      and(
+        eq(userAchievement.achievementId, process.env.GETTING_THE_HANG_OF_IT_ID as string),
+        eq(userAchievement.userId, userId)
+      )
+    );
+
+  if (gettingHang.progress < 4 && tutorialAttempts.length >= 4) {
+    await db
+      .update(userAchievement)
+      .set({ progress: 4, dateCompleted: new Date() })
+      .where(
+        and(
+          eq(userAchievement.achievementId, process.env.GETTING_THE_HANG_OF_IT_ID as string),
+          eq(userAchievement.userId, userId)
+        )
+      );
+  }
 }
+
+}
+
+//checker for standard mode completion
+//checker for 2 standard complete
+//checker for 4 standard complete
+
+
+//checker for repeated tutorial
+//checker for all tutorial
 
 export const attemptService = new AttemptService();

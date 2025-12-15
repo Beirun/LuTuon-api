@@ -3,11 +3,12 @@ import { db } from "../config/db";
 import { user } from "../schema/user";
 import { refreshToken } from "../schema/refreshToken";
 import { log } from "../schema/log";
-import { eq, sql, isNull, and } from "drizzle-orm";
+import { eq, sql, isNull, and, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { avatar } from "../schema/avatar";
+import { userAchievement } from "../schema/userAchievement";
 
 const ACCESS_TOKEN_EXPIRY = "1h";
 const REFRESH_TOKEN_EXPIRY_DAYS = 14;
@@ -22,7 +23,7 @@ export class GameService {
     });
   }
 
-  async getAttempts(userId: string){
+  async getAttempts(userId: string) {
     const u = await db
       .select()
       .from(user)
@@ -49,7 +50,7 @@ export class GameService {
 
       GROUP BY f.food_id, f.food_name
     `);
-      const statsRes = await db.execute(sql`
+    const statsRes = await db.execute(sql`
       WITH ach AS (
         SELECT
           COUNT(*)::int AS total_achievements
@@ -85,11 +86,11 @@ export class GameService {
         numberOfAttempts: number;
         tutorialUnlock: boolean;
       }[],
-      stats
-    }
+      stats,
+    };
   }
 
-  async getAchievements(userId: string){
+  async getAchievements(userId: string) {
     const u = await db
       .select()
       .from(user)
@@ -116,11 +117,9 @@ export class GameService {
     }[];
 
     return {
-      achievements
-    }
+      achievements,
+    };
   }
-
-
 
   async login(
     email: string,
@@ -132,7 +131,12 @@ export class GameService {
     const u = await db
       .select()
       .from(user)
-      .where(and(sql`LOWER(${user.userEmail}) = LOWER(${email})`, isNull(user.dateDeleted)))
+      .where(
+        and(
+          sql`LOWER(${user.userEmail}) = LOWER(${email})`,
+          isNull(user.dateDeleted)
+        )
+      )
       .limit(1);
     if (u.length === 0) throw new Error("User not found");
 
@@ -158,49 +162,110 @@ export class GameService {
 
     await this.addLog(u[0].userId, "Logged In To Game");
 
+    // Daily Diner achievement logic
+    const dailyDinerId = process.env.DAILY_DINER_ID as string;
+    const [daily] = await db
+      .select({
+        progress: userAchievement.progress,
+        dateCompleted: userAchievement.dateCompleted,
+      })
+      .from(userAchievement)
+      .where(
+        and(
+          eq(userAchievement.achievementId, dailyDinerId),
+          eq(userAchievement.userId, u[0].userId)
+        )
+      );
+
+    // get last "Logged In To Game" log before today
+    const logs = await db
+      .select()
+      .from(log)
+      .where(
+        and(
+          eq(log.userId, u[0].userId),
+          eq(log.logDescription, "Logged In To Game"),
+          sql`log_date < NOW()::date`
+        )
+      )
+      .orderBy(desc(log.logDate))
+      .limit(1);
+
+    let increment = 1;
+
+    if (logs.length > 0) {
+      const lastLogin = new Date(logs[0].logDate);
+      const diffDays = Math.floor(
+        (new Date().setHours(0, 0, 0, 0) - lastLogin.setHours(0, 0, 0, 0)) /
+          (1000 * 60 * 60 * 24)
+      );
+
+      if (diffDays === 1) {
+        // consecutive login
+        increment = daily.progress + 1;
+      } else if (diffDays > 1) {
+        // skipped a day, reset progress
+        increment = 1;
+      } else {
+        // already logged in today
+        increment = daily.progress;
+      }
+    }
+
+    // update Daily Diner achievement if needed
+    if (increment > daily.progress && increment <= 5) {
+      await db
+        .update(userAchievement)
+        .set({
+          progress: increment,
+          dateCompleted: increment === 5 ? new Date() : daily.dateCompleted,
+        })
+        .where(
+          and(
+            eq(userAchievement.achievementId, dailyDinerId),
+            eq(userAchievement.userId, u[0].userId)
+          )
+        );
+    }
+
     // Per-food stats
     const attempts = await db.execute(sql`
-      SELECT
-        f.food_id AS "foodId",
-        f.food_name AS "foodName",
-
-        COALESCE(MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END), 0)::int AS "highestPoint",
-        COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END)::int AS "numberOfAttempts",
-        COALESCE(BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100), FALSE) AS "tutorialUnlock"
-
-      FROM food f
-      LEFT JOIN attempt a
-        ON a.food_id = f.food_id
-        AND a.user_id = ${u[0].userId}
-
-      LEFT JOIN "user" u
-        ON u.user_id = ${u[0].userId}
-        AND u.date_deleted IS NULL
-
-      GROUP BY f.food_id, f.food_name
-    `);
+    SELECT
+      f.food_id AS "foodId",
+      f.food_name AS "foodName",
+      COALESCE(MAX(CASE WHEN a.attempt_type='Standard' THEN a.attempt_point END), 0)::int AS "highestPoint",
+      COUNT(CASE WHEN a.attempt_type='Standard' THEN 1 END)::int AS "numberOfAttempts",
+      COALESCE(BOOL_OR(a.attempt_type='Tutorial' AND a.attempt_point = 100), FALSE) AS "tutorialUnlock"
+    FROM food f
+    LEFT JOIN attempt a
+      ON a.food_id = f.food_id
+      AND a.user_id = ${u[0].userId}
+    LEFT JOIN "user" u
+      ON u.user_id = ${u[0].userId}
+      AND u.date_deleted IS NULL
+    GROUP BY f.food_id, f.food_name
+  `);
 
     // Overall stats
     const statsRes = await db.execute(sql`
-      WITH ach AS (
-        SELECT
-          COUNT(*)::int AS total_achievements
-        FROM user_achievement ua
-        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
-        JOIN "user" u ON u.user_id = ua.user_id
-        WHERE ua.user_id = ${u[0].userId}
-          AND u.date_deleted IS NULL
-          AND ua.progress = ach.achievement_requirement
-      )
-      SELECT
-        COUNT(a.attempt_id)::int AS "totalAttempts",
-        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
-        (SELECT total_achievements FROM ach) AS "totalAchievements"
-      FROM attempt a
-      JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId}
+    WITH ach AS (
+      SELECT COUNT(*)::int AS total_achievements
+      FROM user_achievement ua
+      JOIN achievement ach ON ach.achievement_id = ua.achievement_id
+      JOIN "user" u ON u.user_id = ua.user_id
+      WHERE ua.user_id = ${u[0].userId}
         AND u.date_deleted IS NULL
-    `);
+        AND ua.progress = ach.achievement_requirement
+    )
+    SELECT
+      COUNT(a.attempt_id)::int AS "totalAttempts",
+      COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
+      (SELECT total_achievements FROM ach) AS "totalAchievements"
+    FROM attempt a
+    JOIN "user" u ON u.user_id = a.user_id
+    WHERE a.user_id = ${u[0].userId}
+      AND u.date_deleted IS NULL
+  `);
 
     const stats = statsRes.rows.length
       ? (statsRes.rows[0] as {
@@ -212,15 +277,15 @@ export class GameService {
 
     // Achievements
     const achievementsRes = await db.execute(sql`
-      SELECT
-        ua.achievement_id AS "achievementId",
-        ac.achievement_name AS "achievementName",
-        ua.progress,
-        ua.date_completed AS "dateCompleted"
-      FROM user_achievement ua
-      JOIN achievement ac ON ac.achievement_id = ua.achievement_id
-      WHERE ua.user_id = ${u[0].userId}
-    `);
+    SELECT
+      ua.achievement_id AS "achievementId",
+      ac.achievement_name AS "achievementName",
+      ua.progress,
+      ua.date_completed AS "dateCompleted"
+    FROM user_achievement ua
+    JOIN achievement ac ON ac.achievement_id = ua.achievement_id
+    WHERE ua.user_id = ${u[0].userId}
+  `);
     const achievements = achievementsRes.rows as {
       achievementId: string;
       achievementName: string;

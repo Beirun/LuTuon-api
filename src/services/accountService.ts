@@ -13,6 +13,8 @@ import { Response, Request } from "express";
 import { log } from "../schema/log";
 import dotEnv from "dotenv";
 import { generateUsername } from "../config/username";
+import { achievement } from "../schema/achievement";
+import { userAchievement } from "../schema/userAchievement";
 
 dotEnv.config();
 
@@ -102,6 +104,27 @@ export class AccountService {
       notificationStatus: "unread",
       notificationDate: new Date(),
     });
+    const achievements = await db.select().from(achievement);
+    for (const a of achievements) {
+      const exists = await db
+        .select()
+        .from(userAchievement)
+        .where(
+          and(
+            eq(userAchievement.userId, newUser.userId),
+            eq(userAchievement.achievementId, a.achievementId)
+          )
+        );
+
+      if (exists.length === 0) {
+        await db.insert(userAchievement).values({
+          userId: newUser.userId,
+          achievementId: a.achievementId,
+          progress: 0,
+          dateCompleted: new Date(),
+        });
+      }
+    }
 
     return { message: "Registered successfully" };
   }
@@ -200,7 +223,27 @@ export class AccountService {
       };
       found = await db.insert(user).values(newUser).returning();
       await this.addLog(newUser.userId, "User registered");
+      const achievements = await db.select().from(achievement);
+      for (const a of achievements) {
+        const exists = await db
+          .select()
+          .from(userAchievement)
+          .where(
+            and(
+              eq(userAchievement.userId, newUser.userId),
+              eq(userAchievement.achievementId, a.achievementId)
+            )
+          );
 
+        if (exists.length === 0) {
+          await db.insert(userAchievement).values({
+            userId: newUser.userId,
+            achievementId: a.achievementId,
+            progress: 0,
+            dateCompleted: new Date(),
+          });
+        }
+      }
       const admins = await db
         .select()
         .from(user)
