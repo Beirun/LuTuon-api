@@ -90,14 +90,7 @@ export class GameController {
       res.status(400).json({ error: e.message })
     }
   }
-  static async getStats(req: AuthRequest, res: Response) {
-    try {
-      const result = await gameService.getStats(req.user.userId)
-      res.json(result)
-    } catch (e: any) {
-      res.status(400).json({ error: e.message })
-    }
-  }
+ 
   static async profile(req: AuthRequest, res: Response) {
     try {
       const ip = req.ip || "unknown"

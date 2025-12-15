@@ -49,7 +49,34 @@ export class GameService {
 
       GROUP BY f.food_id, f.food_name
     `);
+      const statsRes = await db.execute(sql`
+      WITH ach AS (
+        SELECT
+          COUNT(*)::int AS total_achievements
+        FROM user_achievement ua
+        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
+        JOIN "user" u ON u.user_id = ua.user_id
+        WHERE ua.user_id = ${u[0].userId}
+          AND u.date_deleted IS NULL
+          AND ua.progress = ach.achievement_requirement
+      )
+      SELECT
+        COUNT(a.attempt_id)::int AS "totalAttempts",
+        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
+        (SELECT total_achievements FROM ach) AS "totalAchievements"
+      FROM attempt a
+      JOIN "user" u ON u.user_id = a.user_id
+      WHERE a.user_id = ${u[0].userId}
+        AND u.date_deleted IS NULL
+    `);
 
+    const stats = statsRes.rows.length
+      ? (statsRes.rows[0] as {
+          totalAttempts: number;
+          totalPoints: number;
+          totalAchievements: number;
+        })
+      : { totalAttempts: 0, totalPoints: 0, totalAchievements: 0 };
     return {
       attempts: attempts.rows as {
         foodId: string;
@@ -57,7 +84,8 @@ export class GameService {
         highestPoint: number;
         numberOfAttempts: number;
         tutorialUnlock: boolean;
-      }[]
+      }[],
+      stats
     }
   }
 
@@ -92,45 +120,6 @@ export class GameService {
     }
   }
 
-  async getStats(userId: string){
-    const u = await db
-      .select()
-      .from(user)
-      .where(and(eq(user.userId, userId), isNull(user.dateDeleted)))
-      .limit(1);
-    if (u.length === 0) throw new Error("User not found");
-    // Overall stats
-    const statsRes = await db.execute(sql`
-      WITH ach AS (
-        SELECT
-          COUNT(*)::int AS total_achievements
-        FROM user_achievement ua
-        JOIN achievement ach ON ach.achievement_id = ua.achievement_id
-        JOIN "user" u ON u.user_id = ua.user_id
-        WHERE ua.user_id = ${u[0].userId}
-          AND u.date_deleted IS NULL
-          AND ua.progress = ach.achievement_requirement
-      )
-      SELECT
-        COUNT(a.attempt_id)::int AS "totalAttempts",
-        COALESCE(SUM(a.attempt_point),0)::int AS "totalPoints",
-        (SELECT total_achievements FROM ach) AS "totalAchievements"
-      FROM attempt a
-      JOIN "user" u ON u.user_id = a.user_id
-      WHERE a.user_id = ${u[0].userId}
-        AND u.date_deleted IS NULL
-    `);
-
-    const stats = statsRes.rows.length
-      ? (statsRes.rows[0] as {
-          totalAttempts: number;
-          totalPoints: number;
-          totalAchievements: number;
-        })
-      : { totalAttempts: 0, totalPoints: 0, totalAchievements: 0 };
-
-      return {stats}
-  }
 
 
   async login(
