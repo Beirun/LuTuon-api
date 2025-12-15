@@ -160,6 +160,15 @@ export class GameService {
       expiresAt,
     });
 
+    const isFirstTimeLogin = await db
+      .select()
+      .from(log)
+      .where(
+        and(
+          eq(log.logDescription, "Logged In To Game"),
+          eq(log.userId, u[0].userId)
+        )
+      );
     await this.addLog(u[0].userId, "Logged In To Game");
 
     // Daily Diner achievement logic
@@ -312,6 +321,7 @@ export class GameService {
       }[],
       stats,
       achievements,
+      isFirstTimeLogin,
     };
   }
 
@@ -337,6 +347,15 @@ export class GameService {
       ipAddress: ip,
       expiresAt,
     });
+    const isFirstTimeLogin = await db
+      .select()
+      .from(log)
+      .where(
+        and(
+          eq(log.logDescription, "Logged In To Game"),
+          eq(log.userId, u[0].userId)
+        )
+      );
 
     await this.addLog(u[0].userId, "Logged In To Game");
 
@@ -429,6 +448,7 @@ export class GameService {
       }[],
       stats,
       achievements,
+      isFirstTimeLogin,
     };
   }
 
