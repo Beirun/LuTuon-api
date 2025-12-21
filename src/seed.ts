@@ -6,6 +6,7 @@ import { achievement } from "./schema/achievement";
 import { user } from "./schema/user";
 import { userAchievement } from "./schema/userAchievement";
 import { and, eq } from "drizzle-orm";
+import { food } from "./schema/food";
 
 export async function seedUserAchievements() {
   const users = await db.select().from(user);
@@ -20,8 +21,8 @@ export async function seedUserAchievements() {
         .where(
           and(
             eq(userAchievement.userId, u.userId),
-            eq(userAchievement.achievementId, a.achievementId)
-          )
+            eq(userAchievement.achievementId, a.achievementId),
+          ),
         );
 
       if (exists.length === 0) {
@@ -29,69 +30,32 @@ export async function seedUserAchievements() {
           userId: u.userId,
           achievementId: a.achievementId,
           progress: 0,
-          dateCompleted: new Date()
+          dateCompleted: new Date(),
         });
       }
     }
   }
 }
 
-
 export async function seed() {
   try {
-    const achievements = [
-  {
-    achievementId: uuidv4(),
-    achievementName: "First Flame",
-    achievementDescription: "Successfully cook your very first Filipino dish in Standard Mode.",
-    achievementRequirement: 1
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Perfect Plating",
-    achievementDescription: "Achieve a perfect score on any dish by completing all steps flawlessly.",
-    achievementRequirement: 100
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Novice Chef",
-    achievementDescription: "Finish the first 2 dishes in Standard Mode.",
-    achievementRequirement: 2
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Master Chef",
-    achievementDescription: "Finish all available dishes in Standard Mode.",
-    achievementRequirement: 4
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "The Perfectionist",
-    achievementDescription: "Achieve perfect score for a dish five times.",
-    achievementRequirement: 5
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Daily Diner",
-    achievementDescription: "Log in and cook at least one dish for five consecutive days.",
-    achievementRequirement: 5
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Curious Cook",
-    achievementDescription: "Replay a tutorial lesson to practice your skills.",
-    achievementRequirement: 1
-  },
-  {
-    achievementId: uuidv4(),
-    achievementName: "Getting the Hang of it",
-    achievementDescription: "Complete all tutorial lessons successfully.",
-    achievementRequirement: 4
-  }
-];
+    const foods = [
+      {
+        foodId: uuidv4(),
+        foodName: "Garlic Butter Shrimp",
+        foodDescription:
+          "Shrimp sautéed in rich garlic butter with a hint of lemon, tender and juicy with a fragrant, savory finish.",
+      },
+      {
+        foodId: uuidv4(),
+        foodName: "Sinuglaw",
+        foodDescription:
+          "A mix of grilled pork belly and fresh fish cured in vinegar and calamansi, combined with onions and chili for a smoky, tangy taste.",
+      },
+    ];
 
-    await db.insert(achievement).values(achievements);
-    console.log("✅ Achievements seeded");
+    await db.insert(food).values(foods);
+    console.log("✅ food seeded");
 
     process.exit(0);
   } catch (e) {
@@ -100,4 +64,4 @@ export async function seed() {
   }
 }
 
-
+seed();
