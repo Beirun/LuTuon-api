@@ -391,7 +391,7 @@ export class GameService {
         JOIN "user" u ON u.user_id = ua.user_id
         WHERE ua.user_id = ${u[0].userId}
           AND u.date_deleted IS NULL
-          AND ua.progress = ach.achievement_requirement
+          AND ua.progress >= ach.achievement_requirement
       )
       SELECT
         COUNT(a.attempt_id)::int AS "totalAttempts",
